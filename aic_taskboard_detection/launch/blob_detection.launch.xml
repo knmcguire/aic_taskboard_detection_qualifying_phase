@@ -4,6 +4,10 @@
     name="params_file"
     default="$(find-pkg-share aic_taskboard_detection)/config/blob_detection.params.yaml"
   />
+  <arg
+    name="gripper_mask_dir"
+    default="$(find-pkg-share aic_taskboard_detection)/resource"
+  />
   <node
     pkg="aic_taskboard_detection"
     exec="blob_detection"
@@ -11,5 +15,6 @@
     output="screen"
   >
     <param from="$(var params_file)"/>
+    <param name="gripper_mask_dir" value="$(var gripper_mask_dir)"/>
   </node>
 </launch>

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -32,6 +33,9 @@ class BlobDetection(Node):
         self.blob_center_camera = str(
             self.declare_parameter('blob_center_camera', 'center').value
         )
+        self.gripper_mask_dir = str(
+            self.declare_parameter('gripper_mask_dir', '').value
+        )
 
         self.gray_blur_kernel_size = int(self.declare_parameter('gray_blur_kernel_size', 5).value)
         self.binary_morph_kernel_size = int(
@@ -42,6 +46,19 @@ class BlobDetection(Node):
         )
         self.binary_dilate_iterations = int(
             self.declare_parameter('binary_dilate_iterations', 1).value
+        )
+        self.gripper_mask_dilation_kernel_size = int(
+            self.declare_parameter('gripper_mask_dilation_kernel_size', 9).value
+        )
+        self.gripper_mask_dilation_iterations = int(
+            self.declare_parameter('gripper_mask_dilation_iterations', 2).value
+        )
+        self.gripper_mask_dilation_kernel = np.ones(
+            (
+                max(1, self.gripper_mask_dilation_kernel_size),
+                max(1, self.gripper_mask_dilation_kernel_size),
+            ),
+            dtype=np.uint8,
         )
         self.blob_min_area_px = float(self.declare_parameter('blob_min_area_px', 1500.0).value)
         self.blob_moment_epsilon = float(
@@ -74,7 +91,22 @@ class BlobDetection(Node):
                 sensor_qos,
             )
             self.image_subscriptions.append(image_sub)
+
+            mask_file_path = Path(self.gripper_mask_dir) / f'gripper_mask_{camera_name}.npy'
+            gripper_mask = np.load(str(mask_file_path))
+            gripper_mask = cv2.erode(
+                gripper_mask,
+                self.gripper_mask_dilation_kernel,
+                iterations=self.gripper_mask_dilation_iterations,
+            )
+            self.get_logger().info(
+                f'Loaded {camera_name} gripper mask from {mask_file_path} '
+                f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
+                f'iterations={self.gripper_mask_dilation_iterations}'
+            )
+
             self.camera_states[camera_name] = {
+                'gripper_mask': gripper_mask,
                 'blob_publisher': self.create_publisher(
                     Image,
                     f'/{camera_name}{self.camera_blob_output_topic_suffix}',
@@ -89,6 +121,7 @@ class BlobDetection(Node):
         self.get_logger().info(
             f'Publishing {self.blob_center_camera} blob center on {self.blob_center_topic}'
         )
+        self.get_logger().info(f'Gripper mask directory: {self.gripper_mask_dir}')
         self.get_logger().info('Blob detection node started.')
 
     def to_binary(self, cv_image):
@@ -137,6 +170,9 @@ class BlobDetection(Node):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding=self.image_encoding)
             binary = self.to_binary(cv_image)
+            gripper_mask = self.camera_states[camera_name]['gripper_mask']
+            if gripper_mask is not None:
+                binary = cv2.bitwise_and(binary, gripper_mask)
             blob = self.largest_blob(binary)
 
             if blob is None:
