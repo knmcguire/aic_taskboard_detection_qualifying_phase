@@ -1,0 +1,19 @@
+preinsertion_control:
+  ros__parameters:
+    controller_namespace: aic_controller
+    camera_name: center
+    blob_center_topic: /center_camera/blob_center
+    camera_info_topic: /center_camera/camera_info
+    frame_id: gripper/tcp
+    control_rate_hz: 25.0
+    linear_gain: 0.35
+    max_linear_vel: 0.1
+    pixel_tolerance: 12.0
+    target_offset_x_px: 0.0
+    target_offset_y_px: 80.0
+    blob_timeout_sec: 0.5
+    target_stiffness: 85.0
+    target_damping: 75.0
+    wait_for_controller: true
+    sensor_qos_depth: 1
+    publisher_qos_depth: 10

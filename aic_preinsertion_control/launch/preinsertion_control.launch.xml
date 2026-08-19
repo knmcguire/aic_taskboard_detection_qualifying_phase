@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_preinsertion_control)/config/preinsertion_control.params.yaml"
+  />
+  <arg name="use_sim_time" default="true"/>
+  <arg name="camera_name" default="center"/>
+  <node
+    pkg="aic_preinsertion_control"
+    exec="preinsertion_control"
+    name="preinsertion_control"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="camera_name" value="$(var camera_name)"/>
+    <param name="blob_center_topic" value="/$(var camera_name)_camera/blob_center"/>
+    <param name="camera_info_topic" value="/$(var camera_name)_camera/camera_info"/>
+  </node>
+</launch>
