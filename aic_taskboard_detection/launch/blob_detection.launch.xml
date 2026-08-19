@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_taskboard_detection)/config/blob_detection.params.yaml"
+  />
+  <node
+    pkg="aic_taskboard_detection"
+    exec="blob_detection"
+    name="blob_detection"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+  </node>
+</launch>
