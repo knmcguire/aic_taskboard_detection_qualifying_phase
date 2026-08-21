@@ -1,0 +1,26 @@
+/**:
+  ros__parameters:
+    taskboard_short_edge_m: 0.30
+    taskboard_long_edge_m: 0.42
+    hough_threshold: 40
+    hough_min_line_length: 40
+    hough_max_line_gap: 12
+    hough_sample_step_px: 2
+    min_segment_length_px: 40.0
+    ransac_points_min_total: 200
+    ransac_max_lines: 6
+    ransac_fit_iterations: 300
+    ransac_dist_threshold_px: 2.0
+    ransac_min_inliers_base: 80
+    ransac_min_inliers_divisor: 45
+    ransac_outlier_keep_distance_px: 3.0
+    ransac_orientation_kmeans_attempts: 5
+    line_fit_norm_epsilon: 1.0e-6
+    line_intersection_det_epsilon: 1.0e-6
+    draw_line_length_px: 3000.0
+    pose_axis_length_m: 0.15
+    publish_debug_visualization: true
+    use_camera_info_frame: true
+    sensor_qos_depth: 1
+    publisher_qos_depth: 10
+    image_qos_depth: 10

@@ -3,7 +3,7 @@
 <package format="3">
   <name>aic_taskboard_detection</name>
   <version>0.0.1</version>
-  <description>Image preprocessing from camera images for the AI Challenge qualifying phase</description>
+  <description>Taskboard image preprocessing and RANSAC/Hough detection for the AI Challenge qualifying phase</description>
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,6 +11,7 @@
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
+  <depend>tf2_ros</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

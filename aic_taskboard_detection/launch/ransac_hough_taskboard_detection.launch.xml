@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_taskboard_detection)/config/ransac_hough_taskboard_detection.params.yaml"
+  />
+  <arg name="use_sim_time" default="true"/>
+  <arg name="debug_viz" default="true"/>
+
+  <node
+    pkg="aic_taskboard_detection"
+    exec="ransac_hough_taskboard_detection"
+    name="ransac_hough_taskboard_detection_center"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="publish_debug_visualization" value="$(var debug_viz)"/>
+    <param name="camera_name" value="center"/>
+  </node>
+  <node
+    pkg="aic_taskboard_detection"
+    exec="ransac_hough_taskboard_detection"
+    name="ransac_hough_taskboard_detection_left"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="publish_debug_visualization" value="$(var debug_viz)"/>
+    <param name="camera_name" value="left"/>
+  </node>
+  <node
+    pkg="aic_taskboard_detection"
+    exec="ransac_hough_taskboard_detection"
+    name="ransac_hough_taskboard_detection_right"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="publish_debug_visualization" value="$(var debug_viz)"/>
+    <param name="camera_name" value="right"/>
+  </node>
+</launch>

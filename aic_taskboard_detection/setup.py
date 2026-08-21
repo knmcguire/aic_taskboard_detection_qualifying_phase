@@ -20,7 +20,7 @@ setup(
     zip_safe=True,
     maintainer="User",
     maintainer_email="user@example.com",
-    description="Image preprocessing from camera images for the AI Challenge qualifying phase",
+    description="Taskboard image preprocessing and RANSAC/Hough detection for the AI Challenge qualifying phase",
     license="Apache-2.0",
     extras_require={
         "test": [
@@ -30,6 +30,7 @@ setup(
     entry_points={
         "console_scripts": [
             "preprocessing = aic_taskboard_detection.preprocessing:main",
+            "ransac_hough_taskboard_detection = aic_taskboard_detection.ransac_hough_taskboard_detection:main",
         ],
     },
 )
