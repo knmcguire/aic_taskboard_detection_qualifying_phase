@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_taskboard_detection)/config/preprocessing.params.yaml"
+  />
+  <arg
+    name="gripper_mask_dir"
+    default="$(find-pkg-share aic_taskboard_detection)/resource"
+  />
+
+  <node
+    pkg="aic_taskboard_detection"
+    exec="preprocessing"
+    name="preprocessing_center"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="gripper_mask_dir" value="$(var gripper_mask_dir)"/>
+    <param name="camera_name" value="center"/>
+  </node>
+  <node
+    pkg="aic_taskboard_detection"
+    exec="preprocessing"
+    name="preprocessing_left"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="gripper_mask_dir" value="$(var gripper_mask_dir)"/>
+    <param name="camera_name" value="left"/>
+  </node>
+  <node
+    pkg="aic_taskboard_detection"
+    exec="preprocessing"
+    name="preprocessing_right"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="gripper_mask_dir" value="$(var gripper_mask_dir)"/>
+    <param name="camera_name" value="right"/>
+  </node>
+</launch>

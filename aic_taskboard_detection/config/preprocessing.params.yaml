@@ -1,16 +1,13 @@
-blob_detection:
+/**:
   ros__parameters:
-    camera_names: [center, left, right]
-    camera_image_topic_suffix: "_camera/image"
-    camera_blob_output_topic_suffix: "_camera/image_blob"
-    blob_center_topic: /center_camera/blob_center
-    blob_center_camera: center
     gray_blur_kernel_size: 5
     binary_morph_kernel_size: 5
     binary_erode_iterations: 2
     binary_dilate_iterations: 1
     gripper_mask_dilation_kernel_size: 9
     gripper_mask_dilation_iterations: 2
+    canny_threshold_low: 50
+    canny_threshold_high: 150
     blob_min_area_px: 1500.0
     blob_moment_epsilon: 1.0e-6
     image_encoding: bgr8

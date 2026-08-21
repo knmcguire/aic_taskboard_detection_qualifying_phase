@@ -13,29 +13,32 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 
 
-class BlobDetection(Node):
+class Preprocessing(Node):
     def __init__(self):
-        super().__init__('blob_detection')
+        super().__init__('preprocessing')
 
-        self.camera_names = [
-            str(c).strip()
-            for c in self.declare_parameter('camera_names', ['center', 'left', 'right']).value
-        ]
-        self.camera_image_topic_suffix = str(
-            self.declare_parameter('camera_image_topic_suffix', '_camera/image').value
+        self.camera_name = str(self.declare_parameter('camera_name', 'center').value).strip()
+        self.image_topic = str(
+            self.declare_parameter(
+                'image_topic', f'/{self.camera_name}_camera/image'
+            ).value
         )
-        self.camera_blob_output_topic_suffix = str(
-            self.declare_parameter('camera_blob_output_topic_suffix', '_camera/image_blob').value
+        self.blob_image_topic = str(
+            self.declare_parameter(
+                'blob_image_topic', f'/{self.camera_name}_camera/image_blob'
+            ).value
+        )
+        self.canny_image_topic = str(
+            self.declare_parameter(
+                'canny_image_topic', f'/{self.camera_name}_camera/image_canny'
+            ).value
         )
         self.blob_center_topic = str(
-            self.declare_parameter('blob_center_topic', '/center_camera/blob_center').value
+            self.declare_parameter(
+                'blob_center_topic', f'/{self.camera_name}_camera/blob_center'
+            ).value
         )
-        self.blob_center_camera = str(
-            self.declare_parameter('blob_center_camera', 'center').value
-        )
-        self.gripper_mask_dir = str(
-            self.declare_parameter('gripper_mask_dir', '').value
-        )
+        self.gripper_mask_dir = str(self.declare_parameter('gripper_mask_dir', '').value)
 
         self.gray_blur_kernel_size = int(self.declare_parameter('gray_blur_kernel_size', 5).value)
         self.binary_morph_kernel_size = int(
@@ -60,6 +63,8 @@ class BlobDetection(Node):
             ),
             dtype=np.uint8,
         )
+        self.canny_threshold_low = int(self.declare_parameter('canny_threshold_low', 50).value)
+        self.canny_threshold_high = int(self.declare_parameter('canny_threshold_high', 150).value)
         self.blob_min_area_px = float(self.declare_parameter('blob_min_area_px', 1500.0).value)
         self.blob_moment_epsilon = float(
             self.declare_parameter('blob_moment_epsilon', 1e-6).value
@@ -69,60 +74,42 @@ class BlobDetection(Node):
         publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
 
         self.bridge = CvBridge()
-        self.image_subscriptions = []
-        self.camera_states = {}
-
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=sensor_qos_depth,
         )
 
+        mask_file_path = Path(self.gripper_mask_dir) / f'gripper_mask_{self.camera_name}.npy'
+        gripper_mask = np.load(str(mask_file_path))
+        self.gripper_mask = cv2.erode(
+            gripper_mask,
+            self.gripper_mask_dilation_kernel,
+            iterations=self.gripper_mask_dilation_iterations,
+        )
+        self.get_logger().info(
+            f'Loaded {self.camera_name} gripper mask from {mask_file_path} '
+            f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
+            f'iterations={self.gripper_mask_dilation_iterations}'
+        )
+
+        self.blob_image_pub = self.create_publisher(
+            Image, self.blob_image_topic, publisher_qos_depth
+        )
+        self.canny_image_pub = self.create_publisher(
+            Image, self.canny_image_topic, publisher_qos_depth
+        )
         self.blob_center_pub = self.create_publisher(
             PointStamped, self.blob_center_topic, publisher_qos_depth
         )
+        self.create_subscription(Image, self.image_topic, self.image_callback, sensor_qos)
 
-        for camera_name in self.camera_names:
-            image_topic = f'/{camera_name}{self.camera_image_topic_suffix}'
-            image_sub = self.create_subscription(
-                Image,
-                image_topic,
-                lambda msg, cam=camera_name: self.image_callback(msg, cam),
-                sensor_qos,
-            )
-            self.image_subscriptions.append(image_sub)
-
-            mask_file_path = Path(self.gripper_mask_dir) / f'gripper_mask_{camera_name}.npy'
-            gripper_mask = np.load(str(mask_file_path))
-            gripper_mask = cv2.erode(
-                gripper_mask,
-                self.gripper_mask_dilation_kernel,
-                iterations=self.gripper_mask_dilation_iterations,
-            )
-            self.get_logger().info(
-                f'Loaded {camera_name} gripper mask from {mask_file_path} '
-                f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
-                f'iterations={self.gripper_mask_dilation_iterations}'
-            )
-
-            self.camera_states[camera_name] = {
-                'gripper_mask': gripper_mask,
-                'blob_publisher': self.create_publisher(
-                    Image,
-                    f'/{camera_name}{self.camera_blob_output_topic_suffix}',
-                    publisher_qos_depth,
-                ),
-            }
-            self.get_logger().info(f'Subscribing to {image_topic}')
-            self.get_logger().info(
-                f'Publishing blob image on /{camera_name}{self.camera_blob_output_topic_suffix}'
-            )
-
-        self.get_logger().info(
-            f'Publishing {self.blob_center_camera} blob center on {self.blob_center_topic}'
-        )
+        self.get_logger().info(f'Subscribing to {self.image_topic}')
+        self.get_logger().info(f'Publishing blob image on {self.blob_image_topic}')
+        self.get_logger().info(f'Publishing Canny edges on {self.canny_image_topic}')
+        self.get_logger().info(f'Publishing blob center on {self.blob_center_topic}')
         self.get_logger().info(f'Gripper mask directory: {self.gripper_mask_dir}')
-        self.get_logger().info('Blob detection node started.')
+        self.get_logger().info(f'Preprocessing node started for camera {self.camera_name}.')
 
     def to_binary(self, cv_image):
         """Build an inverted Otsu binary image of dark objects."""
@@ -166,33 +153,37 @@ class BlobDetection(Node):
             'mask': blob_mask,
         }
 
-    def image_callback(self, msg, camera_name):
+    def image_callback(self, msg):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding=self.image_encoding)
             binary = self.to_binary(cv_image)
-            gripper_mask = self.camera_states[camera_name]['gripper_mask']
-            if gripper_mask is not None:
-                binary = cv2.bitwise_and(binary, gripper_mask)
+            if self.gripper_mask is not None:
+                binary = cv2.bitwise_and(binary, self.gripper_mask)
+
+            edges = cv2.Canny(binary, self.canny_threshold_low, self.canny_threshold_high)
+            canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
+            canny_msg.header = msg.header
+            self.canny_image_pub.publish(canny_msg)
+
             blob = self.largest_blob(binary)
 
             if blob is None:
                 blob_image = np.zeros_like(binary)
             else:
                 blob_image = blob['mask']
-                if camera_name == self.blob_center_camera:
-                    cx, cy = blob['center_px']
-                    center_msg = PointStamped()
-                    center_msg.header = msg.header
-                    center_msg.point.x = cx
-                    center_msg.point.y = cy
-                    center_msg.point.z = 0.0
-                    self.blob_center_pub.publish(center_msg)
+                cx, cy = blob['center_px']
+                center_msg = PointStamped()
+                center_msg.header = msg.header
+                center_msg.point.x = cx
+                center_msg.point.y = cy
+                center_msg.point.z = 0.0
+                self.blob_center_pub.publish(center_msg)
 
             blob_msg = self.bridge.cv2_to_imgmsg(blob_image, encoding='mono8')
             blob_msg.header = msg.header
-            self.camera_states[camera_name]['blob_publisher'].publish(blob_msg)
+            self.blob_image_pub.publish(blob_msg)
         except Exception as e:
-            self.get_logger().error(f'Error processing {camera_name} image: {e}')
+            self.get_logger().error(f'Error processing {self.camera_name} image: {e}')
 
 
 def main(args=None):
@@ -200,13 +191,13 @@ def main(args=None):
     parsed_args, ros_args = parser.parse_known_args(args=args)
 
     rclpy.init(args=ros_args)
-    blob_detection = BlobDetection()
+    preprocessing = Preprocessing()
     try:
-        rclpy.spin(blob_detection)
+        rclpy.spin(preprocessing)
     except KeyboardInterrupt:
-        blob_detection.get_logger().info('Keyboard interrupt. Exiting...')
+        preprocessing.get_logger().info('Keyboard interrupt. Exiting...')
     finally:
-        blob_detection.destroy_node()
+        preprocessing.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 

@@ -20,7 +20,7 @@ setup(
     zip_safe=True,
     maintainer="User",
     maintainer_email="user@example.com",
-    description="Blob detection from camera images for the AI Challenge qualifying phase",
+    description="Image preprocessing from camera images for the AI Challenge qualifying phase",
     license="Apache-2.0",
     extras_require={
         "test": [
@@ -29,7 +29,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "blob_detection = aic_taskboard_detection.blob_detection:main",
+            "preprocessing = aic_taskboard_detection.preprocessing:main",
         ],
     },
 )

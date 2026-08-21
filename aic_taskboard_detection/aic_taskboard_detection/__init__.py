@@ -1,1 +1,1 @@
-"""Taskboard blob detection for the AI Challenge qualifying phase."""
+"""Taskboard image preprocessing for the AI Challenge qualifying phase."""
