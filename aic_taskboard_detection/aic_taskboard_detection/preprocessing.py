@@ -65,6 +65,15 @@ class Preprocessing(Node):
         )
         self.canny_threshold_low = int(self.declare_parameter('canny_threshold_low', 50).value)
         self.canny_threshold_high = int(self.declare_parameter('canny_threshold_high', 150).value)
+        self.boundary_gradient_kernel_size = int(
+            self.declare_parameter('boundary_gradient_kernel_size', 3).value
+        )
+        self.boundary_exclusion_dilate_kernel_size = int(
+            self.declare_parameter('boundary_exclusion_dilate_kernel_size', 5).value
+        )
+        self.boundary_exclusion_dilate_iterations = int(
+            self.declare_parameter('boundary_exclusion_dilate_iterations', 1).value
+        )
         self.blob_min_area_px = float(self.declare_parameter('blob_min_area_px', 1500.0).value)
         self.blob_moment_epsilon = float(
             self.declare_parameter('blob_moment_epsilon', 1e-6).value
@@ -87,6 +96,7 @@ class Preprocessing(Node):
             self.gripper_mask_dilation_kernel,
             iterations=self.gripper_mask_dilation_iterations,
         )
+        self.gripper_outline_exclusion = self._gripper_outline_exclusion(self.gripper_mask)
         self.get_logger().info(
             f'Loaded {self.camera_name} gripper mask from {mask_file_path} '
             f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
@@ -110,6 +120,30 @@ class Preprocessing(Node):
         self.get_logger().info(f'Publishing blob center on {self.blob_center_topic}')
         self.get_logger().info(f'Gripper mask directory: {self.gripper_mask_dir}')
         self.get_logger().info(f'Preprocessing node started for camera {self.camera_name}.')
+
+    def _gripper_outline_exclusion(self, gripper_mask):
+        """Thin band around the gripper outline, where Canny only sees the mask cut."""
+        gripper = np.zeros(gripper_mask.shape, dtype=np.uint8)
+        gripper[gripper_mask == 0] = 255
+        outline = cv2.morphologyEx(
+            gripper,
+            cv2.MORPH_GRADIENT,
+            np.ones(
+                (max(1, self.boundary_gradient_kernel_size), max(1, self.boundary_gradient_kernel_size)),
+                np.uint8,
+            ),
+        )
+        return cv2.dilate(
+            outline,
+            np.ones(
+                (
+                    max(1, self.boundary_exclusion_dilate_kernel_size),
+                    max(1, self.boundary_exclusion_dilate_kernel_size),
+                ),
+                np.uint8,
+            ),
+            iterations=max(0, self.boundary_exclusion_dilate_iterations),
+        )
 
     def to_binary(self, cv_image):
         """Build an inverted Otsu binary image of dark objects."""
@@ -161,6 +195,7 @@ class Preprocessing(Node):
                 binary = cv2.bitwise_and(binary, self.gripper_mask)
 
             edges = cv2.Canny(binary, self.canny_threshold_low, self.canny_threshold_high)
+            edges[self.gripper_outline_exclusion > 0] = 0
             canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
             canny_msg.header = msg.header
             self.canny_image_pub.publish(canny_msg)
