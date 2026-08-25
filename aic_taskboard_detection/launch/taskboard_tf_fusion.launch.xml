@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_taskboard_detection)/config/taskboard_tf_fusion.params.yaml"
+  />
+  <arg name="use_sim_time" default="true"/>
+  <arg name="continue_detecting" default="false"/>
+
+  <node
+    pkg="aic_taskboard_detection"
+    exec="taskboard_tf_fusion"
+    name="taskboard_tf_fusion"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="continue_detecting" value="$(var continue_detecting)"/>
+  </node>
+</launch>

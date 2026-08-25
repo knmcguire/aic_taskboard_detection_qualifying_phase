@@ -4,8 +4,13 @@
     name="params_file"
     default="$(find-pkg-share aic_taskboard_detection)/config/ransac_hough_taskboard_detection.params.yaml"
   />
+  <arg
+    name="fusion_params_file"
+    default="$(find-pkg-share aic_taskboard_detection)/config/taskboard_tf_fusion.params.yaml"
+  />
   <arg name="use_sim_time" default="true"/>
   <arg name="debug_viz" default="true"/>
+  <arg name="continue_detecting" default="false"/>
 
   <node
     pkg="aic_taskboard_detection"
@@ -39,5 +44,15 @@
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="publish_debug_visualization" value="$(var debug_viz)"/>
     <param name="camera_name" value="right"/>
+  </node>
+  <node
+    pkg="aic_taskboard_detection"
+    exec="taskboard_tf_fusion"
+    name="taskboard_tf_fusion"
+    output="screen"
+  >
+    <param from="$(var fusion_params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="continue_detecting" value="$(var continue_detecting)"/>
   </node>
 </launch>

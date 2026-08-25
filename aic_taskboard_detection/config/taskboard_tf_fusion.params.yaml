@@ -1,0 +1,18 @@
+/**:
+  ros__parameters:
+    camera_names: [center, left, right]
+    camera_taskboard_frame_prefix: taskboard_
+    parent_frame: base_link
+    taskboard_frame: taskboard_detected
+    min_cameras_for_lock: 2
+    continue_detecting: false
+    tf_lookup_timeout_sec: 0.1
+    tf_max_age_sec: 0.5
+    update_period_sec: 0.05
+    taskboard_projection_position_threshold_m: 0.05
+    taskboard_projection_rotation_similarity_threshold: 0.99
+    taskboard_face_up_min_dot: 0.85
+    enable_taskboard_pose_flattening: true
+    taskboard_flatten_face_up: true
+    publish_debug_transforms: false
+    detection_state_topic: taskboard_detection_state

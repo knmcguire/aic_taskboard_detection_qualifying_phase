@@ -31,6 +31,7 @@ setup(
         "console_scripts": [
             "preprocessing = aic_taskboard_detection.preprocessing:main",
             "ransac_hough_taskboard_detection = aic_taskboard_detection.ransac_hough_taskboard_detection:main",
+            "taskboard_tf_fusion = aic_taskboard_detection.taskboard_tf_fusion:main",
         ],
     },
 )
