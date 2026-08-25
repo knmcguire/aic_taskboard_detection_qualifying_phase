@@ -6,9 +6,10 @@ import cv2
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PointStamped, TransformStamped
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import TransformBroadcaster
 
@@ -33,6 +34,11 @@ class RansacHoughTaskboardDetection(Node):
         self.debug_image_topic = str(
             self.declare_parameter(
                 'debug_image_topic', f'/{self.camera_name}_camera/image_taskboard'
+            ).value
+        )
+        self.color_logo_center_topic = str(
+            self.declare_parameter(
+                'color_logo_center_topic', f'/{self.camera_name}_camera/color_logo_center'
             ).value
         )
         self.camera_optical_frame = str(
@@ -76,6 +82,9 @@ class RansacHoughTaskboardDetection(Node):
         self.publish_debug_visualization = bool(
             self.declare_parameter('publish_debug_visualization', True).value
         )
+        self.color_logo_max_age_sec = float(
+            self.declare_parameter('color_logo_max_age_sec', 0.3).value
+        )
         sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
         publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
         image_qos_depth = max(1, int(self.declare_parameter('image_qos_depth', 10).value))
@@ -102,6 +111,7 @@ class RansacHoughTaskboardDetection(Node):
         self.camera_matrix = None
         self.dist_coeffs = None
         self.camera_info_received = False
+        self._logo_msg = None
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -118,6 +128,9 @@ class RansacHoughTaskboardDetection(Node):
         self.create_subscription(
             CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos
         )
+        self.create_subscription(
+            PointStamped, self.color_logo_center_topic, self.logo_center_callback, image_qos
+        )
         self.debug_publisher = None
         if self.publish_debug_visualization:
             self.debug_publisher = self.create_publisher(
@@ -127,6 +140,10 @@ class RansacHoughTaskboardDetection(Node):
         self.get_logger().info(f'RANSAC/Hough taskboard detection started for {self.camera_name}')
         self.get_logger().info(f'Subscribing to Canny image {self.canny_image_topic}')
         self.get_logger().info(f'Subscribing to camera info {self.camera_info_topic}')
+        self.get_logger().info(
+            f'Subscribing to color logo center {self.color_logo_center_topic} '
+            f'(max age {self.color_logo_max_age_sec:.2f}s)'
+        )
         self.get_logger().info(
             f'Publishing camera pose {self.camera_optical_frame} -> {self.camera_taskboard_frame}'
         )
@@ -146,6 +163,20 @@ class RansacHoughTaskboardDetection(Node):
             f'fx={self.camera_matrix[0, 0]:.2f}, fy={self.camera_matrix[1, 1]:.2f}, '
             f'frame={self.camera_optical_frame}'
         )
+
+    def logo_center_callback(self, msg):
+        self._logo_msg = msg
+
+    def _recent_logo_center(self, image_stamp):
+        if self._logo_msg is None:
+            return None
+        logo_stamp = self._logo_msg.header.stamp
+        if logo_stamp.sec == 0 and logo_stamp.nanosec == 0:
+            return None
+        age_sec = abs((Time.from_msg(image_stamp) - Time.from_msg(logo_stamp)).nanoseconds) / 1e9
+        if age_sec > self.color_logo_max_age_sec:
+            return None
+        return np.array([self._logo_msg.point.x, self._logo_msg.point.y], dtype=np.float32)
 
     def image_callback(self, msg):
         try:
@@ -172,7 +203,8 @@ class RansacHoughTaskboardDetection(Node):
                 self._publish_debug(msg, debug_image)
                 return
 
-            image_points = corners
+            logo_center = self._recent_logo_center(msg.header.stamp)
+            image_points = self.align_corners_to_model_axes(corners, logo_center)
             if debug_image is not None:
                 corner_poly = np.round(image_points).astype(np.int32).reshape(-1, 1, 2)
                 cv2.polylines(debug_image, [corner_poly], True, (0, 255, 0), 3)
@@ -187,6 +219,18 @@ class RansacHoughTaskboardDetection(Node):
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
                         (255, 0, 0),
+                        2,
+                    )
+                if logo_center is not None:
+                    lx, ly = int(logo_center[0]), int(logo_center[1])
+                    cv2.circle(debug_image, (lx, ly), 10, (255, 0, 255), 2)
+                    cv2.putText(
+                        debug_image,
+                        'logo',
+                        (lx + 12, ly - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255, 0, 255),
                         2,
                     )
 
@@ -383,6 +427,22 @@ class RansacHoughTaskboardDetection(Node):
         if len(bottom_pts) == 2:
             return np.array([top_pts[0], top_pts[1], bottom_pts[1], bottom_pts[0]], dtype=np.float32)
         return pts.astype(np.float32)
+
+    def align_corners_to_model_axes(self, image_points, logo_center):
+        """Assign TL from a recent magenta logo, else keep short edge as TL->TR.
+
+        The 3D model is TL, TR, BR, BL with +X the short edge and +Y the long edge.
+        """
+        if image_points is None or len(image_points) < 4:
+            return image_points
+        if logo_center is not None:
+            distances = np.linalg.norm(image_points - logo_center.reshape(1, 2), axis=1)
+            return np.roll(image_points, -int(np.argmin(distances)), axis=0)
+        top_edge = np.linalg.norm(image_points[1] - image_points[0])
+        right_edge = np.linalg.norm(image_points[2] - image_points[1])
+        if top_edge > right_edge:
+            image_points = np.roll(image_points, 1, axis=0)
+        return image_points
 
     def line_distance(self, line, points):
         a, b, c = line

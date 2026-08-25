@@ -20,6 +20,7 @@
     draw_line_length_px: 3000.0
     pose_axis_length_m: 0.15
     publish_debug_visualization: true
+    color_logo_max_age_sec: 0.3
     use_camera_info_frame: true
     sensor_qos_depth: 1
     publisher_qos_depth: 10
