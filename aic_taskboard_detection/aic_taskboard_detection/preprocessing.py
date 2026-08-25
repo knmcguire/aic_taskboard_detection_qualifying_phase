@@ -38,6 +38,11 @@ class Preprocessing(Node):
                 'blob_center_topic', f'/{self.camera_name}_camera/blob_center'
             ).value
         )
+        self.color_logo_center_topic = str(
+            self.declare_parameter(
+                'color_logo_center_topic', f'/{self.camera_name}_camera/color_logo_center'
+            ).value
+        )
         self.gripper_mask_dir = str(self.declare_parameter('gripper_mask_dir', '').value)
 
         self.gray_blur_kernel_size = int(self.declare_parameter('gray_blur_kernel_size', 5).value)
@@ -78,6 +83,12 @@ class Preprocessing(Node):
         self.blob_moment_epsilon = float(
             self.declare_parameter('blob_moment_epsilon', 1e-6).value
         )
+        self.magenta_lower_hsv = np.array(
+            self.declare_parameter('magenta_lower_hsv', [130, 50, 50]).value, dtype=np.uint8
+        )
+        self.magenta_upper_hsv = np.array(
+            self.declare_parameter('magenta_upper_hsv', [170, 255, 255]).value, dtype=np.uint8
+        )
         self.image_encoding = str(self.declare_parameter('image_encoding', 'bgr8').value)
         sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
         publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
@@ -112,12 +123,16 @@ class Preprocessing(Node):
         self.blob_center_pub = self.create_publisher(
             PointStamped, self.blob_center_topic, publisher_qos_depth
         )
+        self.color_logo_center_pub = self.create_publisher(
+            PointStamped, self.color_logo_center_topic, publisher_qos_depth
+        )
         self.create_subscription(Image, self.image_topic, self.image_callback, sensor_qos)
 
         self.get_logger().info(f'Subscribing to {self.image_topic}')
         self.get_logger().info(f'Publishing blob image on {self.blob_image_topic}')
         self.get_logger().info(f'Publishing Canny edges on {self.canny_image_topic}')
         self.get_logger().info(f'Publishing blob center on {self.blob_center_topic}')
+        self.get_logger().info(f'Publishing color logo center on {self.color_logo_center_topic}')
         self.get_logger().info(f'Gripper mask directory: {self.gripper_mask_dir}')
         self.get_logger().info(f'Preprocessing node started for camera {self.camera_name}.')
 
@@ -187,6 +202,21 @@ class Preprocessing(Node):
             'mask': blob_mask,
         }
 
+    def find_magenta_center(self, cv_image):
+        """Detect the magenta logo in HSV and return its center of mass, or None."""
+        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+        magenta_mask = cv2.inRange(hsv, self.magenta_lower_hsv, self.magenta_upper_hsv)
+        if self.gripper_mask is not None:
+            magenta_mask = cv2.bitwise_and(magenta_mask, self.gripper_mask)
+
+        moments = cv2.moments(magenta_mask)
+        if moments['m00'] <= self.blob_moment_epsilon:
+            return None
+
+        cx = float(moments['m10'] / moments['m00'])
+        cy = float(moments['m01'] / moments['m00'])
+        return (cx, cy)
+
     def image_callback(self, msg):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding=self.image_encoding)
@@ -199,6 +229,16 @@ class Preprocessing(Node):
             canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
             canny_msg.header = msg.header
             self.canny_image_pub.publish(canny_msg)
+
+            logo_center = self.find_magenta_center(cv_image)
+            if logo_center is not None:
+                cx, cy = logo_center
+                logo_msg = PointStamped()
+                logo_msg.header = msg.header
+                logo_msg.point.x = cx
+                logo_msg.point.y = cy
+                logo_msg.point.z = 0.0
+                self.color_logo_center_pub.publish(logo_msg)
 
             blob = self.largest_blob(binary)
 
