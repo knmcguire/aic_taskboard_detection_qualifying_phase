@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    camera_name: center
+    component: sc_port
+    method: yolo
+    model_path: ""
+    confidence_threshold: 0.5
+    device: ""
+    imgsz: 640
+    port_class_ids: [0, 1]
+    hsv_lower: [95, 40, 80]
+    hsv_upper: [135, 255, 255]
+    min_contour_area: 50.0
+    morph_kernel_size: 5
+    class_id: sc_port
+    publish_visualization: true
+    image_encoding: bgr8
+    sensor_qos_depth: 1
+    publisher_qos_depth: 10
