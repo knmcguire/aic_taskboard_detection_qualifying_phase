@@ -17,3 +17,37 @@
     image_encoding: bgr8
     sensor_qos_depth: 1
     publisher_qos_depth: 10
+
+zone_projection:
+  ros__parameters:
+    camera_name: center
+    taskboard_short_edge_m: 0.30
+    taskboard_long_edge_m: 0.42
+    nic_zone_offset_m: 0.15
+    sc_zone_offset_m: 0.03
+    zone_rail_count: 5
+    sc_active_rail_count: 2
+    nic_port_pixel_topic: /nic_port_detection/port_pixel_centers
+    nic_detections_topic: /nic_port_detection/detections
+    sc_detections_topic: /sc_port_detection/detections
+    publish_port_tfs: true
+    publish_debug_visualization: true
+    publish_port_entrance_static_tf: false
+    nic_port_tf_prefix: nic_port
+    sc_port_tf_prefix: sc_port
+    nic_port_entrance_tf_prefix: nic_port_entrance
+    sc_port_entrance_tf_prefix: sc_port_entrance
+    port_entrance_min_consecutive_hits: 2
+    port_entrance_position_epsilon_m: 0.005
+    port_pixel_max_age_sec: 0.5
+    nic_detection_association_max_px: 80.0
+    tf_lookup_timeout_sec: 0.15
+    stale_warn_interval_sec: 2.0
+    rail_overflow_warn_interval_sec: 2.0
+    min_projected_depth_m: 1.0e-4
+    overlay_alpha: 0.25
+    taskboard_frame: taskboard_detected
+    use_camera_info_frame: true
+    prefer_image_timestamp: true
+    sensor_qos_depth: 1
+    publisher_qos_depth: 10

@@ -39,4 +39,23 @@
     <param name="method" value="yolo"/>
     <param name="publish_visualization" value="$(var debug_viz)"/>
   </node>
+  <node
+    pkg="aic_component_detection"
+    exec="zone_projection"
+    name="zone_projection"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="camera_name" value="$(var camera_name)"/>
+    <param name="input_image_topic" value="/$(var camera_name)_camera/image"/>
+    <param name="input_camera_info_topic" value="/$(var camera_name)_camera/camera_info"/>
+    <param name="output_image_topic" value="/$(var camera_name)_camera/image_zone_projection"/>
+    <param name="camera_frame" value="$(var camera_name)_camera/optical"/>
+    <param name="nic_port_pixel_topic" value="/nic_port_detection/port_pixel_centers"/>
+    <param name="nic_detections_topic" value="/nic_port_detection/detections"/>
+    <param name="sc_detections_topic" value="/sc_port_detection/detections"/>
+    <param name="publish_visualization" value="$(var debug_viz)"/>
+    <param name="publish_debug_visualization" value="$(var debug_viz)"/>
+  </node>
 </launch>

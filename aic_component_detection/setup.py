@@ -30,6 +30,7 @@ setup(
     entry_points={
         "console_scripts": [
             "component_detection = aic_component_detection.component_detection:main",
+            "zone_projection = aic_component_detection.zone_projection:main",
         ],
     },
 )
