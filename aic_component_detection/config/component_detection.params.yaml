@@ -51,3 +51,27 @@ zone_projection:
     prefer_image_timestamp: true
     sensor_qos_depth: 1
     publisher_qos_depth: 10
+
+simple_port_3d:
+  ros__parameters:
+    camera_name: center
+    camera_info_topic: /center_camera/camera_info
+    nic_detections_topic: /nic_port_detection/detections
+    sc_detections_topic: /sc_port_detection/detections
+    nic_port_targets_topic: /simple_port_3d/nic_port_targets
+    sc_port_targets_topic: /simple_port_3d/sc_port_targets
+    table_frame: tabletop
+    camera_frame_fallback: center_camera/optical
+    use_camera_info_frame: true
+    nic_plane_offset_m: 0.15
+    sc_plane_offset_m: 0.03
+    nic_port_tf_prefix: nic_port
+    sc_port_tf_prefix: sc_port
+    tf_lookup_timeout_sec: 0.2
+    tf_buffer_duration_sec: 10.0
+    ray_epsilon: 1.0e-9
+    yaw_baseline_epsilon: 1.0e-6
+    target_bbox_size_m: 0.001
+    status_period_sec: 2.0
+    sensor_qos_depth: 1
+    publisher_qos_depth: 10

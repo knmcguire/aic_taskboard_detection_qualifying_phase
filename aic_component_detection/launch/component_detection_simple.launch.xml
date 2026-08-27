@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<!--
+  Quick component perception: 2D SC/NIC detection plus table-plane ray intersection.
+  Does not run zone projection or taskboard pose estimation.
+-->
+<launch>
+  <arg
+    name="params_file"
+    default="$(find-pkg-share aic_component_detection)/config/component_detection.params.yaml"
+  />
+  <arg name="use_sim_time" default="true"/>
+  <arg name="camera_name" default="center"/>
+  <arg name="sc_method" default="yolo"/>
+  <arg name="debug_viz" default="true"/>
+
+  <node
+    pkg="aic_component_detection"
+    exec="component_detection"
+    name="sc_port_detection"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="camera_name" value="$(var camera_name)"/>
+    <param name="image_topic" value="/$(var camera_name)_camera/image"/>
+    <param name="visualization_topic" value="/$(var camera_name)_camera/image_sc_ports"/>
+    <param name="component" value="sc_port"/>
+    <param name="method" value="$(var sc_method)"/>
+    <param name="publish_visualization" value="$(var debug_viz)"/>
+  </node>
+  <node
+    pkg="aic_component_detection"
+    exec="component_detection"
+    name="nic_port_detection"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="camera_name" value="$(var camera_name)"/>
+    <param name="image_topic" value="/$(var camera_name)_camera/image"/>
+    <param name="visualization_topic" value="/$(var camera_name)_camera/image_nic_ports"/>
+    <param name="component" value="nic_port"/>
+    <param name="method" value="yolo"/>
+    <param name="publish_visualization" value="$(var debug_viz)"/>
+  </node>
+  <node
+    pkg="aic_component_detection"
+    exec="simple_port_3d"
+    name="simple_port_3d"
+    output="screen"
+  >
+    <param from="$(var params_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="camera_name" value="$(var camera_name)"/>
+    <param name="camera_info_topic" value="/$(var camera_name)_camera/camera_info"/>
+    <param name="camera_frame_fallback" value="$(var camera_name)_camera/optical"/>
+    <param name="nic_detections_topic" value="/nic_port_detection/detections"/>
+    <param name="sc_detections_topic" value="/sc_port_detection/detections"/>
+  </node>
+</launch>

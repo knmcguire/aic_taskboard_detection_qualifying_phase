@@ -31,6 +31,7 @@ setup(
         "console_scripts": [
             "component_detection = aic_component_detection.component_detection:main",
             "zone_projection = aic_component_detection.zone_projection:main",
+            "simple_port_3d = aic_component_detection.simple_port_3d:main",
         ],
     },
 )
