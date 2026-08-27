@@ -1,0 +1,136 @@
+# Gazebo / AIC simulator settings used by aic_preinsertion_bringup.
+# Edit this file (or pass a copy with simulator_config:=/path/to/file.yaml)
+# to change robot/cable pose and which task-board components are spawned.
+
+simulator:
+  ground_truth: true
+  start_aic_engine: false
+  gazebo_gui: true
+  launch_rviz: true
+  spawn_cable: false
+  attach_cable_to_gripper: false
+  cable_type: sfp_sc_cable
+  robot:
+    x: -0.2
+    y: 0.2
+    z: 1.14
+    roll: 0.0
+    pitch: 0.0
+    yaw: -3.141
+  cable:
+    x: 0.172
+    y: 0.024
+    z: 1.518
+    roll: 0.4432
+    pitch: -0.48
+    yaw: 1.3303
+
+task_board:
+  spawn: true
+  pose:
+    x: 0.15
+    y: -0.2
+    z: 1.14
+    roll: 0.0
+    pitch: 0.0
+    yaw: 3.1415
+  # Mount-rail translation range: -0.09625 to 0.09625 m.
+  # SC port translation range: -0.055 to 0.055 m.
+  # NIC card mount translation range: -0.048 to 0.036 m.
+  components:
+    lc_mount_rail_0:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sfp_mount_rail_0:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_mount_rail_0:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    lc_mount_rail_1:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sfp_mount_rail_1:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_mount_rail_1:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_port_0:
+      present: true
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_port_1:
+      present: true
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_port_2:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_port_3:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    sc_port_4:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    nic_card_mount_0:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    nic_card_mount_1:
+      present: true
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    nic_card_mount_2:
+      present: true
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    nic_card_mount_3:
+      present: false
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    nic_card_mount_4:
+      present: true
+      translation: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
