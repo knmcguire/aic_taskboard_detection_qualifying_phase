@@ -19,7 +19,7 @@ setup(
     zip_safe=True,
     maintainer="User",
     maintainer_email="user@example.com",
-    description="Image-based Cartesian visual servoing to center a detected blob in the camera image",
+    description="Cartesian preinsertion state machine: look at blob, hover above NIC rail, then standoff above NIC port",
     license="Apache-2.0",
     extras_require={
         "test": [

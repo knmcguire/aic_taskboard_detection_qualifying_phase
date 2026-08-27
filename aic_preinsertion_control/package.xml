@@ -3,13 +3,14 @@
 <package format="3">
   <name>aic_preinsertion_control</name>
   <version>0.0.1</version>
-  <description>Image-based Cartesian visual servoing to center a detected blob in the camera image</description>
+  <description>Cartesian preinsertion state machine: look at blob, hover above NIC rail, then standoff above NIC port</description>
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
   <depend>aic_control_interfaces</depend>
 
   <exec_depend>launch</exec_depend>

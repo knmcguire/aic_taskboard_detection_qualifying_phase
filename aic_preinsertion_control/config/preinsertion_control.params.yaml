@@ -4,14 +4,29 @@ preinsertion_control:
     camera_name: center
     blob_center_topic: /center_camera/blob_center
     camera_info_topic: /center_camera/camera_info
-    frame_id: gripper/tcp
+    camera_frame: center_camera/optical
+    tcp_frame: gripper/tcp
+    base_frame: base_link
+    taskboard_frame: taskboard_detected
     control_rate_hz: 25.0
-    linear_gain: 0.35
-    max_linear_vel: 0.1
+    angular_gain: 1.2
+    max_angular_vel: 0.25
     pixel_tolerance: 12.0
     target_offset_x_px: 0.0
-    target_offset_y_px: 80.0
+    target_offset_y_px: 0.0
     blob_timeout_sec: 0.5
+    tf_stable_sec: 0.3
+    target_rail_index: 2
+    target_port_index: 0
+    nic_port_tf_prefix: nic_port
+    taskboard_short_edge_m: 0.30
+    taskboard_long_edge_m: 0.42
+    rail_count: 5
+    rail_standoff_m: 0.20
+    port_standoff_m: 0.04
+    pose_position_tolerance_m: 0.012
+    pose_orientation_tolerance_rad: 0.08
+    pose_timeout_sec: 20.0
     target_stiffness: 85.0
     target_damping: 75.0
     wait_for_controller: true
