@@ -3,13 +3,12 @@ preinsertion_control:
     controller_namespace: aic_controller
     camera_name: center
     blob_center_topic: /center_camera/blob_center
-    camera_info_topic: /center_camera/camera_info
     camera_frame: center_camera/optical
     tcp_frame: gripper/tcp
     base_frame: base_link
     taskboard_frame: taskboard_detected
     control_rate_hz: 25.0
-    angular_gain: 1.2
+    angular_gain: 0.002
     max_angular_vel: 0.25
     pixel_tolerance: 12.0
     target_offset_x_px: 0.0
@@ -30,5 +29,4 @@ preinsertion_control:
     target_stiffness: 85.0
     target_damping: 75.0
     wait_for_controller: true
-    sensor_qos_depth: 1
     publisher_qos_depth: 10

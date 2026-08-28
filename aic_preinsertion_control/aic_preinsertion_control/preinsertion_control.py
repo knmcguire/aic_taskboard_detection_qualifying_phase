@@ -24,9 +24,7 @@ from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion, Twist, Vect
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
-from sensor_msgs.msg import CameraInfo
 from tf2_ros import Buffer, TransformException, TransformListener
 
 
@@ -133,13 +131,9 @@ class PreinsertionControl(Node):
         )
         self.camera_name = str(self.declare_parameter('camera_name', 'center').value).strip()
         default_blob_topic = f'/{self.camera_name}_camera/blob_center'
-        default_info_topic = f'/{self.camera_name}_camera/camera_info'
         default_camera_frame = f'{self.camera_name}_camera/optical'
         self.blob_center_topic = str(
             self.declare_parameter('blob_center_topic', default_blob_topic).value
-        )
-        self.camera_info_topic = str(
-            self.declare_parameter('camera_info_topic', default_info_topic).value
         )
         self.camera_frame = str(
             self.declare_parameter('camera_frame', default_camera_frame).value
@@ -152,7 +146,7 @@ class PreinsertionControl(Node):
         self.control_rate_hz = max(
             1.0, float(self.declare_parameter('control_rate_hz', 25.0).value)
         )
-        self.angular_gain = float(self.declare_parameter('angular_gain', 1.2).value)
+        self.angular_gain = float(self.declare_parameter('angular_gain', 0.002).value)
         self.max_angular_vel = float(self.declare_parameter('max_angular_vel', 0.25).value)
         self.pixel_tolerance = float(self.declare_parameter('pixel_tolerance', 12.0).value)
         self.target_offset_x_px = float(self.declare_parameter('target_offset_x_px', 0.0).value)
@@ -189,7 +183,6 @@ class PreinsertionControl(Node):
         stiffness = float(self.declare_parameter('target_stiffness', 85.0).value)
         damping = float(self.declare_parameter('target_damping', 75.0).value)
         wait_for_controller = bool(self.declare_parameter('wait_for_controller', True).value)
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
         publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
 
         self.target_stiffness = np.diag([stiffness] * 6).flatten()
@@ -197,11 +190,6 @@ class PreinsertionControl(Node):
 
         self.blob_uv = None
         self.last_blob_time = None
-        self.image_width = None
-        self.image_height = None
-        self.fx = None
-        self.fy = None
-        self._logged_camera_info = False
         self._last_status = None
 
         self._state = PreinsertionState.LOOK_AT_BLOB
@@ -237,20 +225,8 @@ class PreinsertionControl(Node):
                     f"Waiting for service '{self.controller_namespace}/change_target_mode'..."
                 )
 
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
-
         self.create_subscription(
             PointStamped, self.blob_center_topic, self.blob_center_callback, publisher_qos_depth
-        )
-        self.create_subscription(
-            CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos
-        )
-        self.create_subscription(
-            CameraInfo, self.camera_info_topic, self.camera_info_callback, publisher_qos_depth
         )
 
         self.create_timer(1.0 / self.control_rate_hz, self._tick)
@@ -264,30 +240,6 @@ class PreinsertionControl(Node):
     def blob_center_callback(self, msg):
         self.blob_uv = (float(msg.point.x), float(msg.point.y))
         self.last_blob_time = self.get_clock().now()
-
-    def camera_info_callback(self, msg):
-        self.image_width = int(msg.width)
-        self.image_height = int(msg.height)
-        k = msg.k
-        if len(k) >= 6 and k[0] > 1.0 and k[4] > 1.0:
-            self.fx = float(k[0])
-            self.fy = float(k[4])
-        elif self.image_width > 0 and self.image_height > 0:
-            self.fx = float(self.image_width)
-            self.fy = float(self.image_height)
-        if not self._logged_camera_info and self.fx is not None:
-            self._logged_camera_info = True
-            target_u, target_v = self._image_target()
-            self.get_logger().info(
-                f'Camera info: {self.image_width}x{self.image_height} '
-                f'fx={self.fx:.1f} fy={self.fy:.1f} '
-                f'target=({target_u:.1f}, {target_v:.1f}) frame={self.camera_frame}'
-            )
-
-    def _image_target(self):
-        target_u = 0.5 * self.image_width + self.target_offset_x_px
-        target_v = 0.5 * self.image_height - self.target_offset_y_px
-        return target_u, target_v
 
     def lookup_transform(self, target_frame, source_frame):
         try:
@@ -355,10 +307,6 @@ class PreinsertionControl(Node):
         return Twist()
 
     def _look_at_blob_twist(self):
-        if self.image_width is None or self.image_height is None or self.fx is None or self.fy is None:
-            self._log_status('LOOK_AT_BLOB', f'no camera info on {self.camera_info_topic}')
-            return self._zero_twist()
-
         if self.blob_uv is None or self.last_blob_time is None:
             self._log_status('LOOK_AT_BLOB', f'no blob center on {self.blob_center_topic}')
             return self._zero_twist()
@@ -370,10 +318,10 @@ class PreinsertionControl(Node):
             )
             return self._zero_twist()
 
+        # blob_center is already (u - cx, v - cy) in pixels.
         blob_u, blob_v = self.blob_uv
-        target_u, target_v = self._image_target()
-        error_u = blob_u - target_u
-        error_v = blob_v - target_v
+        error_u = blob_u - self.target_offset_x_px
+        error_v = blob_v + self.target_offset_y_px
         pixel_error = float(np.hypot(error_u, error_v))
         if pixel_error <= self.pixel_tolerance:
             self._log_status(
@@ -386,8 +334,8 @@ class PreinsertionControl(Node):
         # ṗ = -ω × p, so ωx < 0 looks down and ωy > 0 looks right.
         omega_cam = np.array(
             [
-                -self.angular_gain * (error_v / self.fy),
-                self.angular_gain * (error_u / self.fx),
+                -self.angular_gain * error_v,
+                self.angular_gain * error_u,
                 0.0,
             ],
             dtype=np.float64,

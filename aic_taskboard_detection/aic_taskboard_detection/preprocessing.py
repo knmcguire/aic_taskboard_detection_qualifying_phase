@@ -261,10 +261,12 @@ class Preprocessing(Node):
             else:
                 blob_image = blob['mask']
                 cx, cy = blob['center_px']
+                height, width = cv_image.shape[:2]
                 center_msg = PointStamped()
                 center_msg.header = msg.header
-                center_msg.point.x = cx
-                center_msg.point.y = cy
+                # Offset from the geometric camera/image center (pixels).
+                center_msg.point.x = cx - 0.5 * float(width)
+                center_msg.point.y = cy - 0.5 * float(height)
                 center_msg.point.z = 0.0
                 self.blob_center_pub.publish(center_msg)
 
