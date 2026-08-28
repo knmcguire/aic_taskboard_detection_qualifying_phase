@@ -101,18 +101,27 @@ class Preprocessing(Node):
         )
 
         mask_file_path = Path(self.gripper_mask_dir) / f'gripper_mask_{self.camera_name}.npy'
-        gripper_mask = np.load(str(mask_file_path))
-        self.gripper_mask = cv2.erode(
-            gripper_mask,
-            self.gripper_mask_dilation_kernel,
-            iterations=self.gripper_mask_dilation_iterations,
-        )
-        self.gripper_outline_exclusion = self._gripper_outline_exclusion(self.gripper_mask)
-        self.get_logger().info(
-            f'Loaded {self.camera_name} gripper mask from {mask_file_path} '
-            f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
-            f'iterations={self.gripper_mask_dilation_iterations}'
-        )
+        self.gripper_mask = None
+        self.gripper_outline_exclusion = None
+        try:
+            gripper_mask = np.load(str(mask_file_path))
+        except (OSError, ValueError) as e:
+            self.get_logger().fatal(
+                f'Failed to load gripper mask from {mask_file_path}: {e}. '
+                'Continuing without a gripper mask; no gripper pixels will be excluded.'
+            )
+        else:
+            self.gripper_mask = cv2.erode(
+                gripper_mask,
+                self.gripper_mask_dilation_kernel,
+                iterations=self.gripper_mask_dilation_iterations,
+            )
+            self.gripper_outline_exclusion = self._gripper_outline_exclusion(self.gripper_mask)
+            self.get_logger().info(
+                f'Loaded {self.camera_name} gripper mask from {mask_file_path} '
+                f'with dilation kernel={self.gripper_mask_dilation_kernel.shape[0]} '
+                f'iterations={self.gripper_mask_dilation_iterations}'
+            )
 
         self.blob_image_pub = self.create_publisher(
             Image, self.blob_image_topic, publisher_qos_depth
@@ -225,7 +234,8 @@ class Preprocessing(Node):
                 binary = cv2.bitwise_and(binary, self.gripper_mask)
 
             edges = cv2.Canny(binary, self.canny_threshold_low, self.canny_threshold_high)
-            edges[self.gripper_outline_exclusion > 0] = 0
+            if self.gripper_outline_exclusion is not None:
+                edges[self.gripper_outline_exclusion > 0] = 0
             canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
             canny_msg.header = msg.header
             self.canny_image_pub.publish(canny_msg)
