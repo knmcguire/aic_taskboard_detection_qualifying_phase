@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import numpy as np
 import rclpy
+from aic_perception_utils import quaternion_to_rotation_matrix, rotation_matrix_to_quaternion
 from geometry_msgs.msg import TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -230,7 +231,7 @@ class TaskboardTfFusion(Node):
         consensus_cameras = [valid_cameras[i] for i in consensus_indices]
 
         quats = np.array(
-            [self.rotation_matrix_to_quaternion(rot) for rot, _ in consensus_transforms]
+            [rotation_matrix_to_quaternion(rot) for rot, _ in consensus_transforms]
         )
         for i in range(1, len(quats)):
             if np.dot(quats[0], quats[i]) < 0:
@@ -239,7 +240,7 @@ class TaskboardTfFusion(Node):
         avg_quat = quats.mean(axis=0)
         avg_quat = avg_quat / np.linalg.norm(avg_quat)
 
-        avg_rot = self.quaternion_to_rotation_matrix(avg_quat)
+        avg_rot = quaternion_to_rotation_matrix(avg_quat)
         board_normal = avg_rot[:, 2]
         up_alignment = float(np.dot(board_normal, np.array([0.0, 0.0, 1.0])))
         if up_alignment < self.taskboard_face_up_min_dot:
@@ -253,7 +254,7 @@ class TaskboardTfFusion(Node):
 
         if self.enable_taskboard_pose_flattening:
             avg_rot = self.flatten_taskboard_rotation_to_table(avg_rot)
-            avg_quat = self.rotation_matrix_to_quaternion(avg_rot)
+            avg_quat = rotation_matrix_to_quaternion(avg_rot)
             avg_quat = avg_quat / np.linalg.norm(avg_quat)
 
         avg_trans = np.array([trans for _, trans in consensus_transforms]).mean(axis=0)
@@ -307,13 +308,13 @@ class TaskboardTfFusion(Node):
                 tf_msg.transform.translation.z,
             ]
         )
-        return self.quaternion_to_rotation_matrix(quat), trans
+        return quaternion_to_rotation_matrix(quat), trans
 
     def _publish_debug_transforms(self, valid_transforms, camera_names):
         stamp = self.get_clock().now().to_msg()
         debug_transforms = []
         for (rot, trans), camera_name in zip(valid_transforms, camera_names):
-            quat = self.rotation_matrix_to_quaternion(rot)
+            quat = rotation_matrix_to_quaternion(rot)
             t = TransformStamped()
             t.header.stamp = stamp
             t.header.frame_id = self.parent_frame
@@ -348,7 +349,7 @@ class TaskboardTfFusion(Node):
         position_threshold = self.taskboard_projection_position_threshold_m
         rotation_threshold = self.taskboard_projection_rotation_similarity_threshold
 
-        quats = np.array([self.rotation_matrix_to_quaternion(rot) for rot in rotations])
+        quats = np.array([rotation_matrix_to_quaternion(rot) for rot in rotations])
         for i, j in pairwise_indices:
             pairwise_sims.append(abs(float(np.dot(quats[i], quats[j]))))
 
@@ -429,44 +430,6 @@ class TaskboardTfFusion(Node):
         x_flat = np.cross(y_flat, z_flat)
         x_flat = x_flat / max(1e-9, np.linalg.norm(x_flat))
         return np.column_stack((x_flat, y_flat, z_flat))
-
-    def rotation_matrix_to_quaternion(self, rotation_matrix):
-        trace = rotation_matrix[0, 0] + rotation_matrix[1, 1] + rotation_matrix[2, 2]
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            w = 0.25 / s
-            x = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) * s
-            y = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) * s
-            z = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) * s
-        elif rotation_matrix[0, 0] > rotation_matrix[1, 1] and rotation_matrix[0, 0] > rotation_matrix[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[0, 0] - rotation_matrix[1, 1] - rotation_matrix[2, 2])
-            w = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) / s
-            x = 0.25 * s
-            y = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / s
-            z = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / s
-        elif rotation_matrix[1, 1] > rotation_matrix[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[1, 1] - rotation_matrix[0, 0] - rotation_matrix[2, 2])
-            w = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) / s
-            x = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / s
-            y = 0.25 * s
-            z = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / s
-        else:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[2, 2] - rotation_matrix[0, 0] - rotation_matrix[1, 1])
-            w = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) / s
-            x = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / s
-            y = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / s
-            z = 0.25 * s
-        return np.array([x, y, z, w])
-
-    def quaternion_to_rotation_matrix(self, quat):
-        x, y, z, w = quat
-        return np.array(
-            [
-                [1 - 2 * (y**2 + z**2), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-                [2 * (x * y + w * z), 1 - 2 * (x**2 + z**2), 2 * (y * z - w * x)],
-                [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x**2 + y**2)],
-            ]
-        )
 
 
 def main(args=None):

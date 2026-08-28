@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 import cv2
 import numpy as np
 import rclpy
+from aic_perception_utils import rotation_matrix_to_quaternion
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped, TransformStamped
 from rclpy.node import Node
@@ -597,36 +598,8 @@ class RansacHoughTaskboardDetection(Node):
         ys = np.linspace(y1, y2, n)
         return np.column_stack((xs, ys)).astype(np.float32)
 
-    def rotation_matrix_to_quaternion(self, rotation_matrix):
-        trace = rotation_matrix[0, 0] + rotation_matrix[1, 1] + rotation_matrix[2, 2]
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            w = 0.25 / s
-            x = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) * s
-            y = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) * s
-            z = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) * s
-        elif rotation_matrix[0, 0] > rotation_matrix[1, 1] and rotation_matrix[0, 0] > rotation_matrix[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[0, 0] - rotation_matrix[1, 1] - rotation_matrix[2, 2])
-            w = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) / s
-            x = 0.25 * s
-            y = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / s
-            z = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / s
-        elif rotation_matrix[1, 1] > rotation_matrix[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[1, 1] - rotation_matrix[0, 0] - rotation_matrix[2, 2])
-            w = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) / s
-            x = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / s
-            y = 0.25 * s
-            z = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / s
-        else:
-            s = 2.0 * np.sqrt(1.0 + rotation_matrix[2, 2] - rotation_matrix[0, 0] - rotation_matrix[1, 1])
-            w = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) / s
-            x = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / s
-            y = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / s
-            z = 0.25 * s
-        return np.array([x, y, z, w])
-
     def _fill_transform(self, header_stamp, parent_frame, child_frame, rotation, translation):
-        quat = self.rotation_matrix_to_quaternion(rotation)
+        quat = rotation_matrix_to_quaternion(rotation)
         t = TransformStamped()
         t.header.stamp = header_stamp
         t.header.frame_id = parent_frame

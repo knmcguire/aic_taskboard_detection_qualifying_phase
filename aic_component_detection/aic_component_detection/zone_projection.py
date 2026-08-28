@@ -22,6 +22,7 @@ from argparse import ArgumentParser
 import cv2
 import numpy as np
 import rclpy
+from aic_perception_utils import quaternion_to_rotation_matrix
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseArray, TransformStamped
 from rclpy.duration import Duration
@@ -386,18 +387,6 @@ class ZoneProjection(Node):
         x_min, x_max, y_min, y_max = self._zone_bounds(zone_number)
         return x_min <= point[0] <= x_max and y_min <= point[1] <= y_max
 
-    @staticmethod
-    def quaternion_to_rotation_matrix(quat_xyzw):
-        x, y, z, w = quat_xyzw
-        return np.array(
-            [
-                [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-                [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-                [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-            ],
-            dtype=np.float64,
-        )
-
     def _lookup_transform(self, target_frame, source_frame, stamp):
         """Non-blocking TF lookup. Prefer latest, then the image stamp if requested."""
         try:
@@ -433,7 +422,7 @@ class ZoneProjection(Node):
         t = tf_cam_to_tb.transform.translation
         q = tf_cam_to_tb.transform.rotation
         self._cam_pos_tb = np.array([t.x, t.y, t.z], dtype=np.float64)
-        self._cam_rot_tb = self.quaternion_to_rotation_matrix(
+        self._cam_rot_tb = quaternion_to_rotation_matrix(
             np.array([q.x, q.y, q.z, q.w], dtype=np.float64)
         )
         self._tb_rot_cam = self._cam_rot_tb.T
