@@ -24,6 +24,7 @@ from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion, Twist, Vect
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from tf2_ros import Buffer, TransformException, TransformListener
 
@@ -183,7 +184,6 @@ class PreinsertionControl(Node):
         stiffness = float(self.declare_parameter('target_stiffness', 85.0).value)
         damping = float(self.declare_parameter('target_damping', 75.0).value)
         wait_for_controller = bool(self.declare_parameter('wait_for_controller', True).value)
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
 
         self.target_stiffness = np.diag([stiffness] * 6).flatten()
         self.target_damping = np.diag([damping] * 6).flatten()
@@ -206,7 +206,7 @@ class PreinsertionControl(Node):
         self.motion_update_publisher = self.create_publisher(
             MotionUpdate,
             f'/{self.controller_namespace}/pose_commands',
-            publisher_qos_depth,
+            10,
         )
 
         if wait_for_controller:
@@ -226,7 +226,10 @@ class PreinsertionControl(Node):
                 )
 
         self.create_subscription(
-            PointStamped, self.blob_center_topic, self.blob_center_callback, publisher_qos_depth
+            PointStamped,
+            self.blob_center_topic,
+            self.blob_center_callback,
+            qos_profile_sensor_data,
         )
 
         self.create_timer(1.0 / self.control_rate_hz, self._tick)

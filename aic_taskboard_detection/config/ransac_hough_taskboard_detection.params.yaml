@@ -23,6 +23,3 @@
     color_logo_max_age_sec: 0.3
     use_camera_info_frame: true
     detection_enable_topic: taskboard_detection_enabled
-    sensor_qos_depth: 1
-    publisher_qos_depth: 10
-    image_qos_depth: 10

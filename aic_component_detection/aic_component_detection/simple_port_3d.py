@@ -26,7 +26,7 @@ import rclpy
 from geometry_msgs.msg import TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
@@ -100,9 +100,6 @@ class SimplePort3D(Node):
         self.status_period_sec = max(
             0.5, float(self.declare_parameter('status_period_sec', 2.0).value)
         )
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
-
         self.camera_info_received = False
         self.camera_matrix = None
         self._cam_pos_table = None
@@ -111,11 +108,6 @@ class SimplePort3D(Node):
         self._last_nic_count = 0
         self._last_sc_count = 0
 
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
         camera_info_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -124,22 +116,28 @@ class SimplePort3D(Node):
         )
 
         self.create_subscription(
-            CameraInfo, self.camera_info_topic, self._on_camera_info, sensor_qos
+            CameraInfo, self.camera_info_topic, self._on_camera_info, qos_profile_sensor_data
         )
         self.create_subscription(
             CameraInfo, self.camera_info_topic, self._on_camera_info, camera_info_qos
         )
         self.create_subscription(
-            Detection2DArray, self.nic_detections_topic, self._on_nic_detections, 10
+            Detection2DArray,
+            self.nic_detections_topic,
+            self._on_nic_detections,
+            qos_profile_sensor_data,
         )
         self.create_subscription(
-            Detection2DArray, self.sc_detections_topic, self._on_sc_detections, 10
+            Detection2DArray,
+            self.sc_detections_topic,
+            self._on_sc_detections,
+            qos_profile_sensor_data,
         )
         self.nic_port_targets_pub = self.create_publisher(
-            Detection3DArray, self.nic_port_targets_topic, publisher_qos_depth
+            Detection3DArray, self.nic_port_targets_topic, qos_profile_sensor_data
         )
         self.sc_port_targets_pub = self.create_publisher(
-            Detection3DArray, self.sc_port_targets_topic, publisher_qos_depth
+            Detection3DArray, self.sc_port_targets_topic, qos_profile_sensor_data
         )
 
         self.tf_buffer = Buffer(cache_time=Duration(seconds=tf_buffer_duration_sec))

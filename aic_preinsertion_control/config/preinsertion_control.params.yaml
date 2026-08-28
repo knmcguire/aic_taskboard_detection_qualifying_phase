@@ -29,4 +29,3 @@ preinsertion_control:
     target_stiffness: 85.0
     target_damping: 75.0
     wait_for_controller: true
-    publisher_qos_depth: 10

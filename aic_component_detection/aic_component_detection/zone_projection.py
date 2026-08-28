@@ -28,7 +28,7 @@ from geometry_msgs.msg import PoseArray, TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
@@ -147,8 +147,6 @@ class ZoneProjection(Node):
         )
         self.use_camera_info_frame = bool(self.declare_parameter('use_camera_info_frame', True).value)
         self.prefer_image_timestamp = bool(self.declare_parameter('prefer_image_timestamp', True).value)
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
 
         self.bridge = CvBridge()
         self.tf_buffer = Buffer()
@@ -176,11 +174,6 @@ class ZoneProjection(Node):
         self._tb_pos_cam = None
         self._tb_rot_cam = None
 
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
         camera_info_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -188,25 +181,41 @@ class ZoneProjection(Node):
             depth=1,
         )
 
-        self.create_subscription(Image, self.input_image_topic, self.image_callback, sensor_qos)
         self.create_subscription(
-            CameraInfo, self.input_camera_info_topic, self.camera_info_callback, sensor_qos
+            Image, self.input_image_topic, self.image_callback, qos_profile_sensor_data
+        )
+        self.create_subscription(
+            CameraInfo,
+            self.input_camera_info_topic,
+            self.camera_info_callback,
+            qos_profile_sensor_data,
         )
         self.create_subscription(
             CameraInfo, self.input_camera_info_topic, self.camera_info_callback, camera_info_qos
         )
         self.create_subscription(
-            PoseArray, self.nic_port_pixel_topic, self._nic_port_pixels_callback, sensor_qos
+            PoseArray,
+            self.nic_port_pixel_topic,
+            self._nic_port_pixels_callback,
+            qos_profile_sensor_data,
         )
         self.create_subscription(
-            Detection2DArray, self.nic_detections_topic, self._nic_detections_callback, sensor_qos
+            Detection2DArray,
+            self.nic_detections_topic,
+            self._nic_detections_callback,
+            qos_profile_sensor_data,
         )
         self.create_subscription(
-            Detection2DArray, self.sc_detections_topic, self._sc_detections_callback, sensor_qos
+            Detection2DArray,
+            self.sc_detections_topic,
+            self._sc_detections_callback,
+            qos_profile_sensor_data,
         )
         self.image_pub = None
         if self.publish_debug_visualization:
-            self.image_pub = self.create_publisher(Image, self.output_image_topic, publisher_qos_depth)
+            self.image_pub = self.create_publisher(
+                Image, self.output_image_topic, qos_profile_sensor_data
+            )
 
         self.add_on_set_parameters_callback(self._parameter_callback)
         self.create_timer(0.5, self._activation_timer)

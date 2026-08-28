@@ -15,8 +15,6 @@
     class_id: sc_port
     publish_visualization: true
     image_encoding: bgr8
-    sensor_qos_depth: 1
-    publisher_qos_depth: 10
 
 zone_projection:
   ros__parameters:
@@ -49,8 +47,6 @@ zone_projection:
     taskboard_frame: taskboard_detected
     use_camera_info_frame: true
     prefer_image_timestamp: true
-    sensor_qos_depth: 1
-    publisher_qos_depth: 10
 
 simple_port_3d:
   ros__parameters:
@@ -73,5 +69,3 @@ simple_port_3d:
     yaw_baseline_epsilon: 1.0e-6
     target_bbox_size_m: 0.001
     status_period_sec: 2.0
-    sensor_qos_depth: 1
-    publisher_qos_depth: 10

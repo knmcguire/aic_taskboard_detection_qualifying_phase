@@ -9,7 +9,7 @@ import rclpy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 
 
@@ -90,15 +90,8 @@ class Preprocessing(Node):
             self.declare_parameter('magenta_upper_hsv', [170, 255, 255]).value, dtype=np.uint8
         )
         self.image_encoding = str(self.declare_parameter('image_encoding', 'bgr8').value)
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
 
         self.bridge = CvBridge()
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
 
         mask_file_path = Path(self.gripper_mask_dir) / f'gripper_mask_{self.camera_name}.npy'
         self.gripper_mask = None
@@ -124,18 +117,20 @@ class Preprocessing(Node):
             )
 
         self.blob_image_pub = self.create_publisher(
-            Image, self.blob_image_topic, publisher_qos_depth
+            Image, self.blob_image_topic, qos_profile_sensor_data
         )
         self.canny_image_pub = self.create_publisher(
-            Image, self.canny_image_topic, publisher_qos_depth
+            Image, self.canny_image_topic, qos_profile_sensor_data
         )
         self.blob_center_pub = self.create_publisher(
-            PointStamped, self.blob_center_topic, publisher_qos_depth
+            PointStamped, self.blob_center_topic, qos_profile_sensor_data
         )
         self.color_logo_center_pub = self.create_publisher(
-            PointStamped, self.color_logo_center_topic, publisher_qos_depth
+            PointStamped, self.color_logo_center_topic, qos_profile_sensor_data
         )
-        self.create_subscription(Image, self.image_topic, self.image_callback, sensor_qos)
+        self.create_subscription(
+            Image, self.image_topic, self.image_callback, qos_profile_sensor_data
+        )
 
         self.get_logger().info(f'Subscribing to {self.image_topic}')
         self.get_logger().info(f'Publishing blob image on {self.blob_image_topic}')

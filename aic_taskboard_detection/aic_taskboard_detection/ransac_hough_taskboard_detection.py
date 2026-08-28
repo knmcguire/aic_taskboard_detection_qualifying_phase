@@ -9,7 +9,7 @@ from aic_perinsertion_utils import rotation_matrix_to_quaternion
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped, TransformStamped
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import Bool
@@ -90,10 +90,6 @@ class RansacHoughTaskboardDetection(Node):
         self.color_logo_max_age_sec = float(
             self.declare_parameter('color_logo_max_age_sec', 0.3).value
         )
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
-        image_qos_depth = max(1, int(self.declare_parameter('image_qos_depth', 10).value))
-
         short_edge = float(self.declare_parameter('taskboard_short_edge_m', 0.30).value)
         long_edge = float(self.declare_parameter('taskboard_long_edge_m', 0.42).value)
         # TL, TR, BR, BL: +X is the short edge, +Y is the long edge, +Z is board normal.
@@ -118,16 +114,6 @@ class RansacHoughTaskboardDetection(Node):
         self.camera_info_received = False
         self._logo_msg = None
 
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
-        self.image_qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=image_qos_depth,
-        )
         # Matches the fusion node's latched gate publisher, so a detector that starts
         # after the taskboard was locked learns about it instead of running forever.
         gate_qos = QoSProfile(
@@ -142,7 +128,7 @@ class RansacHoughTaskboardDetection(Node):
         self._logo_subscription = None
 
         self.create_subscription(
-            CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos
+            CameraInfo, self.camera_info_topic, self.camera_info_callback, qos_profile_sensor_data
         )
         self.create_subscription(
             Bool, self.detection_enable_topic, self.detection_enable_callback, gate_qos
@@ -150,7 +136,7 @@ class RansacHoughTaskboardDetection(Node):
         self.debug_publisher = None
         if self.publish_debug_visualization:
             self.debug_publisher = self.create_publisher(
-                Image, self.debug_image_topic, publisher_qos_depth
+                Image, self.debug_image_topic, qos_profile_sensor_data
             )
 
         self.get_logger().info(f'RANSAC/Hough taskboard detection started for {self.camera_name}')
@@ -184,13 +170,13 @@ class RansacHoughTaskboardDetection(Node):
 
         if enabled:
             self._canny_subscription = self.create_subscription(
-                Image, self.canny_image_topic, self.image_callback, self.image_qos
+                Image, self.canny_image_topic, self.image_callback, qos_profile_sensor_data
             )
             self._logo_subscription = self.create_subscription(
                 PointStamped,
                 self.color_logo_center_topic,
                 self.logo_center_callback,
-                self.image_qos,
+                qos_profile_sensor_data,
             )
             self.get_logger().info(f'{self.camera_name} detection enabled')
             return

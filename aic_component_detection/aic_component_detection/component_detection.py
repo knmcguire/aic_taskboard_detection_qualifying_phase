@@ -29,7 +29,7 @@ from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose, PoseArray
 from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
@@ -69,8 +69,6 @@ class ComponentDetection(Node):
         )
         self.publish_viz = bool(self.declare_parameter('publish_visualization', False).value)
         self.image_encoding = str(self.declare_parameter('image_encoding', 'bgr8').value)
-        sensor_qos_depth = max(1, int(self.declare_parameter('sensor_qos_depth', 1).value))
-        publisher_qos_depth = max(1, int(self.declare_parameter('publisher_qos_depth', 10).value))
         self.hsv_lower = np.array(
             self.declare_parameter('hsv_lower', [95, 40, 80]).value, dtype=np.uint8
         )
@@ -96,28 +94,25 @@ class ComponentDetection(Node):
             self.model = self._load_yolo(self._resolve_model_path(model_path))
 
         self.bridge = CvBridge()
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=sensor_qos_depth,
-        )
 
-        self.detected_pub = self.create_publisher(Bool, '~/detected', publisher_qos_depth)
+        self.detected_pub = self.create_publisher(Bool, '~/detected', qos_profile_sensor_data)
         self.detections_pub = self.create_publisher(
-            Detection2DArray, '~/detections', publisher_qos_depth
+            Detection2DArray, '~/detections', qos_profile_sensor_data
         )
         self.port_pixels_pub = None
         if self.component == 'nic_port':
             self.port_pixels_pub = self.create_publisher(
-                PoseArray, '~/port_pixel_centers', publisher_qos_depth
+                PoseArray, '~/port_pixel_centers', qos_profile_sensor_data
             )
         self.viz_pub = None
         if self.publish_viz:
             self.viz_pub = self.create_publisher(
-                Image, self.visualization_topic, publisher_qos_depth
+                Image, self.visualization_topic, qos_profile_sensor_data
             )
 
-        self.create_subscription(Image, self.image_topic, self.image_callback, sensor_qos)
+        self.create_subscription(
+            Image, self.image_topic, self.image_callback, qos_profile_sensor_data
+        )
 
         self.get_logger().info(
             f'Component detection ready: component={self.component} method={self.method}'
