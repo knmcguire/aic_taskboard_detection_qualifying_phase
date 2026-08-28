@@ -19,7 +19,7 @@ import numpy as np
 import rclpy
 from aic_control_interfaces.msg import MotionUpdate, TargetMode, TrajectoryGenerationMode
 from aic_control_interfaces.srv import ChangeTargetMode
-from aic_perception_utils import quaternion_to_rotation_matrix, rotation_matrix_to_quaternion
+from aic_perinsertion_utils import quaternion_to_rotation_matrix, rotation_matrix_to_quaternion
 from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion, Twist, Vector3, Wrench
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException

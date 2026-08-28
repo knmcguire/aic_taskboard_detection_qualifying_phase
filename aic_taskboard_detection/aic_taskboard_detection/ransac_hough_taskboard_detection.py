@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 import cv2
 import numpy as np
 import rclpy
-from aic_perception_utils import rotation_matrix_to_quaternion
+from aic_perinsertion_utils import rotation_matrix_to_quaternion
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped, TransformStamped
 from rclpy.node import Node

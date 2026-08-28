@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 
 import numpy as np
 import rclpy
-from aic_perception_utils import quaternion_to_rotation_matrix, rotation_matrix_to_quaternion
+from aic_perinsertion_utils import quaternion_to_rotation_matrix, rotation_matrix_to_quaternion
 from geometry_msgs.msg import TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node

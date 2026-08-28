@@ -7,7 +7,7 @@
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 
-  <depend>aic_perception_utils</depend>
+  <depend>aic_perinsertion_utils</depend>
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>

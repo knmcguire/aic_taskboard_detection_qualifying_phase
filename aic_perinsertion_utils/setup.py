@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "aic_perception_utils"
+package_name = "aic_perinsertion_utils"
 
 setup(
     name=package_name,
