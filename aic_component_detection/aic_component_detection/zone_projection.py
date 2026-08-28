@@ -14,7 +14,7 @@ NIC ports, by port index 0/1). Zone 1 holds NIC cards; zone 2 holds SC ports.
 Publishes child TFs of ``taskboard_detected`` on ``/tf``:
   ``nic_port_r<rail>_p<port>`` and ``sc_port_r<rail>``.
 Optional latched entrance frames (``nic_port_entrance_*``, ``sc_port_entrance_*``)
-are also published dynamically so ``reset_zone_monitoring`` can drop them.
+are also published dynamically.
 """
 
 from argparse import ArgumentParser
@@ -30,7 +30,6 @@ from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
-from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
 from vision_msgs.msg import Detection2DArray
 
@@ -209,9 +208,6 @@ class ZoneProjection(Node):
             self.image_pub = self.create_publisher(Image, self.output_image_topic, publisher_qos_depth)
 
         self.add_on_set_parameters_callback(self._parameter_callback)
-        self.create_service(Trigger, 'start_zone_monitoring', self.start_zone_monitoring_callback)
-        self.create_service(Trigger, 'check_zone_monitoring', self.check_zone_monitoring_callback)
-        self.create_service(Trigger, 'reset_zone_monitoring', self.reset_zone_monitoring_callback)
         self.create_timer(0.5, self._activation_timer)
 
         self.get_logger().info('Zone projection node started.')
@@ -312,35 +308,6 @@ class ZoneProjection(Node):
             f'Waiting for TF "{self.camera_frame}" -> "{self.taskboard_frame}" '
             'before projecting zones.'
         )
-
-    def start_zone_monitoring_callback(self, request, response):
-        if self._activate_if_tf_ready() or self.monitoring_active:
-            response.success = True
-            response.message = f'started|{self.taskboard_frame}'
-            return response
-        response.success = False
-        response.message = f'no_tf|taskboard frame "{self.taskboard_frame}" not found'
-        self.get_logger().warn(response.message)
-        return response
-
-    def check_zone_monitoring_callback(self, request, response):
-        if self.monitoring_active:
-            response.success = True
-            response.message = f'active|{self.taskboard_frame}'
-        else:
-            response.success = False
-            response.message = 'inactive'
-        return response
-
-    def reset_zone_monitoring_callback(self, request, response):
-        self.monitoring_active = False
-        self._port_entrance_candidate_positions.clear()
-        self._port_entrance_candidate_hits.clear()
-        self._latched_port_entrance_frames.clear()
-        response.success = True
-        response.message = 'reset_complete'
-        self.get_logger().info('Zone monitoring reset; latched port-entrance TFs dropped.')
-        return response
 
     def _parameter_callback(self, params):
         from rcl_interfaces.msg import SetParametersResult
