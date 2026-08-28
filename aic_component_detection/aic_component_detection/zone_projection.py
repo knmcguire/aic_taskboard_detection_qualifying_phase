@@ -11,8 +11,10 @@ Each image-pixel detection is cast as a camera ray, intersected with the
 elevated zone plane in the taskboard frame, then labeled by rail (and, for
 NIC ports, by port index 0/1). Zone 1 holds NIC cards; zone 2 holds SC ports.
 
-Publishes child TFs of ``taskboard_detected``:
+Publishes child TFs of ``taskboard_detected`` on ``/tf``:
   ``nic_port_r<rail>_p<port>`` and ``sc_port_r<rail>``.
+Optional latched entrance frames (``nic_port_entrance_*``, ``sc_port_entrance_*``)
+are also published dynamically so ``reset_zone_monitoring`` can drop them.
 """
 
 from argparse import ArgumentParser
@@ -29,7 +31,7 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from std_srvs.srv import Trigger
-from tf2_ros import Buffer, StaticTransformBroadcaster, TransformBroadcaster, TransformException, TransformListener
+from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
 from vision_msgs.msg import Detection2DArray
 
 # Zone map in the taskboard XY plane (origin at board center):
@@ -101,8 +103,8 @@ class ZoneProjection(Node):
             self.declare_parameter('publish_visualization', True).value
         )
         self.publish_port_tfs = _as_bool(self.declare_parameter('publish_port_tfs', True).value)
-        self.publish_port_entrance_static_tf = _as_bool(
-            self.declare_parameter('publish_port_entrance_static_tf', False).value
+        self.publish_port_entrance_tfs = _as_bool(
+            self.declare_parameter('publish_port_entrance_tfs', False).value
         )
         self.nic_port_tf_prefix = str(
             self.declare_parameter('nic_port_tf_prefix', 'nic_port').value
@@ -152,7 +154,6 @@ class ZoneProjection(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
-        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
 
         self.camera_matrix = None
         self.dist_coeffs = None
@@ -167,7 +168,7 @@ class ZoneProjection(Node):
         self._last_overflow_port_warn_time = None
         self._port_entrance_candidate_positions = {}
         self._port_entrance_candidate_hits = {}
-        self._latched_port_entrance_frames = set()
+        self._latched_port_entrance_frames = {}
         self.monitoring_active = False
         self._last_status_log_time = None
         self._cam_pos_tb = None
@@ -234,6 +235,14 @@ class ZoneProjection(Node):
             self.get_logger().info(
                 f'Publishing port TFs under "{self.taskboard_frame}": '
                 f'{self.nic_port_tf_prefix}_r*_p* and {self.sc_port_tf_prefix}_r*'
+            )
+        if self.publish_port_entrance_tfs:
+            self.get_logger().info(
+                f'Publishing latched port-entrance TFs on /tf under "{self.taskboard_frame}": '
+                f'{self.nic_port_entrance_tf_prefix}_r*_p* and '
+                f'{self.sc_port_entrance_tf_prefix}_r* '
+                f'(min_hits={self.port_entrance_min_consecutive_hits}, '
+                f'epsilon={self.port_entrance_position_epsilon_m:.4f}m)'
             )
 
     def camera_info_callback(self, msg):
@@ -325,13 +334,12 @@ class ZoneProjection(Node):
 
     def reset_zone_monitoring_callback(self, request, response):
         self.monitoring_active = False
-        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
         self._port_entrance_candidate_positions.clear()
         self._port_entrance_candidate_hits.clear()
         self._latched_port_entrance_frames.clear()
         response.success = True
         response.message = 'reset_complete'
-        self.get_logger().info('Zone monitoring reset.')
+        self.get_logger().info('Zone monitoring reset; latched port-entrance TFs dropped.')
         return response
 
     def _parameter_callback(self, params):
@@ -351,8 +359,12 @@ class ZoneProjection(Node):
                 self.port_pixel_max_age_sec = float(param.value)
             elif param.name == 'publish_port_tfs' and param.type_ == Parameter.Type.BOOL:
                 self.publish_port_tfs = bool(param.value)
-            elif param.name == 'publish_port_entrance_static_tf' and param.type_ == Parameter.Type.BOOL:
-                self.publish_port_entrance_static_tf = bool(param.value)
+            elif param.name == 'publish_port_entrance_tfs' and param.type_ == Parameter.Type.BOOL:
+                self.publish_port_entrance_tfs = bool(param.value)
+                if not self.publish_port_entrance_tfs:
+                    self._port_entrance_candidate_positions.clear()
+                    self._port_entrance_candidate_hits.clear()
+                    self._latched_port_entrance_frames.clear()
         return SetParametersResult(successful=True)
 
     def _zone_bounds(self, zone_number):
@@ -682,20 +694,16 @@ class ZoneProjection(Node):
             )
             if transforms:
                 self.tf_broadcaster.sendTransform(transforms)
-        if self.publish_port_entrance_static_tf:
-            static_transforms = []
-            static_transforms.extend(
-                self._port_entrance_transforms_from_detections(
-                    nic_targets, stamp, self.nic_port_entrance_tf_prefix, parse_nic=True
-                )
+        if self.publish_port_entrance_tfs:
+            self._update_port_entrance_latches(
+                nic_targets, self.nic_port_entrance_tf_prefix, parse_nic=True
             )
-            static_transforms.extend(
-                self._port_entrance_transforms_from_detections(
-                    sc_targets, stamp, self.sc_port_entrance_tf_prefix, parse_nic=False
-                )
+            self._update_port_entrance_latches(
+                sc_targets, self.sc_port_entrance_tf_prefix, parse_nic=False
             )
-            if static_transforms:
-                self.static_tf_broadcaster.sendTransform(static_transforms)
+            entrance_transforms = self._latched_port_entrance_transforms(stamp)
+            if entrance_transforms:
+                self.tf_broadcaster.sendTransform(entrance_transforms)
         return nic_targets, sc_targets
 
     @staticmethod
@@ -727,20 +735,28 @@ class ZoneProjection(Node):
                 f'{prefix}_r{rail_idx}_p{port_idx}' if parse_nic else f'{prefix}_r{rail_idx}'
             )
             point = target['point']
-            t = TransformStamped()
-            t.header.stamp = stamp
-            t.header.frame_id = self.taskboard_frame
-            t.child_frame_id = child_frame_id
-            t.transform.translation.x = float(point[0])
-            t.transform.translation.y = float(point[1])
-            t.transform.translation.z = float(point[2])
-            t.transform.rotation.w = 1.0
-            transforms.append(t)
+            transforms.append(self._identity_rotation_transform(child_frame_id, point, stamp))
         return transforms
 
-    def _port_entrance_transforms_from_detections(self, targets, stamp, prefix, parse_nic):
+    def _identity_rotation_transform(self, child_frame_id, position, stamp):
+        t = TransformStamped()
+        t.header.stamp = stamp
+        t.header.frame_id = self.taskboard_frame
+        t.child_frame_id = child_frame_id
+        t.transform.translation.x = float(position[0])
+        t.transform.translation.y = float(position[1])
+        t.transform.translation.z = float(position[2])
+        t.transform.rotation.w = 1.0
+        return t
+
+    def _latched_port_entrance_transforms(self, stamp):
+        return [
+            self._identity_rotation_transform(child_frame_id, position, stamp)
+            for child_frame_id, position in self._latched_port_entrance_frames.items()
+        ]
+
+    def _update_port_entrance_latches(self, targets, prefix, parse_nic):
         prefix = prefix or ('nic_port_entrance' if parse_nic else 'sc_port_entrance')
-        transforms = []
         seen_this_frame = set()
         for target in targets:
             class_id = target['class_id']
@@ -776,20 +792,11 @@ class ZoneProjection(Node):
             if hits < self.port_entrance_min_consecutive_hits:
                 continue
 
-            t = TransformStamped()
-            t.header.stamp = stamp
-            t.header.frame_id = self.taskboard_frame
-            t.child_frame_id = child_frame_id
-            t.transform.translation.x = float(position[0])
-            t.transform.translation.y = float(position[1])
-            t.transform.translation.z = float(position[2])
-            t.transform.rotation.w = 1.0
-            transforms.append(t)
-            self._latched_port_entrance_frames.add(child_frame_id)
+            self._latched_port_entrance_frames[child_frame_id] = position
             self._port_entrance_candidate_positions.pop(child_frame_id, None)
             self._port_entrance_candidate_hits.pop(child_frame_id, None)
             self.get_logger().info(
-                f'Latched port entrance static TF "{child_frame_id}" after '
+                f'Latched port entrance TF "{child_frame_id}" after '
                 f'{hits} consecutive stable detections.'
             )
 
@@ -801,7 +808,6 @@ class ZoneProjection(Node):
         for child in stale_candidates:
             self._port_entrance_candidate_hits.pop(child, None)
             self._port_entrance_candidate_positions.pop(child, None)
-        return transforms
 
     def transform_taskboard_points_to_camera(self, points_taskboard, stamp=None):
         if self._tb_rot_cam is None or self._tb_pos_cam is None:

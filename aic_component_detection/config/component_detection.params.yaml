@@ -32,7 +32,7 @@ zone_projection:
     sc_detections_topic: /sc_port_detection/detections
     publish_port_tfs: true
     publish_debug_visualization: true
-    publish_port_entrance_static_tf: false
+    publish_port_entrance_tfs: false
     nic_port_tf_prefix: nic_port
     sc_port_tf_prefix: sc_port
     nic_port_entrance_tf_prefix: nic_port_entrance
