@@ -247,7 +247,7 @@ class RansacHoughTaskboardDetection(Node):
                 image_points,
                 self.camera_matrix,
                 self.dist_coeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE,
+                flags=cv2.SOLVEPNP_IPPE,
             )
             if not success:
                 self.get_logger().warn(
