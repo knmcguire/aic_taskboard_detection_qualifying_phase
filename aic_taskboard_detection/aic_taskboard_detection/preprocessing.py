@@ -233,22 +233,26 @@ class Preprocessing(Node):
             if self.gripper_mask is not None:
                 binary = cv2.bitwise_and(binary, self.gripper_mask)
 
-            edges = cv2.Canny(binary, self.canny_threshold_low, self.canny_threshold_high)
-            if self.gripper_outline_exclusion is not None:
-                edges[self.gripper_outline_exclusion > 0] = 0
-            canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
-            canny_msg.header = msg.header
-            self.canny_image_pub.publish(canny_msg)
+            # The taskboard detectors unsubscribe once the board is locked, so skip the
+            # edge and logo work while nothing consumes it.
+            if self.canny_image_pub.get_subscription_count() > 0:
+                edges = cv2.Canny(binary, self.canny_threshold_low, self.canny_threshold_high)
+                if self.gripper_outline_exclusion is not None:
+                    edges[self.gripper_outline_exclusion > 0] = 0
+                canny_msg = self.bridge.cv2_to_imgmsg(edges, encoding='mono8')
+                canny_msg.header = msg.header
+                self.canny_image_pub.publish(canny_msg)
 
-            logo_center = self.find_magenta_center(cv_image)
-            if logo_center is not None:
-                cx, cy = logo_center
-                logo_msg = PointStamped()
-                logo_msg.header = msg.header
-                logo_msg.point.x = cx
-                logo_msg.point.y = cy
-                logo_msg.point.z = 0.0
-                self.color_logo_center_pub.publish(logo_msg)
+            if self.color_logo_center_pub.get_subscription_count() > 0:
+                logo_center = self.find_magenta_center(cv_image)
+                if logo_center is not None:
+                    cx, cy = logo_center
+                    logo_msg = PointStamped()
+                    logo_msg.header = msg.header
+                    logo_msg.point.x = cx
+                    logo_msg.point.y = cy
+                    logo_msg.point.z = 0.0
+                    self.color_logo_center_pub.publish(logo_msg)
 
             blob = self.largest_blob(binary)
 

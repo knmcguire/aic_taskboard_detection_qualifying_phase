@@ -16,3 +16,4 @@
     taskboard_flatten_face_up: true
     publish_debug_transforms: false
     detection_state_topic: taskboard_detection_state
+    detection_enable_topic: taskboard_detection_enabled

@@ -8,9 +8,10 @@ import rclpy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped, TransformStamped
 from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
+from std_msgs.msg import Bool
 from tf2_ros import TransformBroadcaster
 
 
@@ -50,6 +51,9 @@ class RansacHoughTaskboardDetection(Node):
             self.declare_parameter(
                 'camera_taskboard_frame', f'taskboard_{self.camera_name}'
             ).value
+        )
+        self.detection_enable_topic = str(
+            self.declare_parameter('detection_enable_topic', 'taskboard_detection_enabled').value
         )
 
         self.hough_threshold = int(self.declare_parameter('hough_threshold', 40).value)
@@ -118,18 +122,29 @@ class RansacHoughTaskboardDetection(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=sensor_qos_depth,
         )
-        image_qos = QoSProfile(
+        self.image_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=image_qos_depth,
         )
+        # Matches the fusion node's latched gate publisher, so a detector that starts
+        # after the taskboard was locked learns about it instead of running forever.
+        gate_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
 
-        self.create_subscription(Image, self.canny_image_topic, self.image_callback, image_qos)
+        self.detection_enabled = False
+        self._canny_subscription = None
+        self._logo_subscription = None
+
         self.create_subscription(
             CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos
         )
         self.create_subscription(
-            PointStamped, self.color_logo_center_topic, self.logo_center_callback, image_qos
+            Bool, self.detection_enable_topic, self.detection_enable_callback, gate_qos
         )
         self.debug_publisher = None
         if self.publish_debug_visualization:
@@ -147,8 +162,48 @@ class RansacHoughTaskboardDetection(Node):
         self.get_logger().info(
             f'Publishing camera pose {self.camera_optical_frame} -> {self.camera_taskboard_frame}'
         )
+        self.get_logger().info(f'Detection gated by {self.detection_enable_topic}')
         if self.publish_debug_visualization:
             self.get_logger().info(f'Publishing debug image on {self.debug_image_topic}')
+
+        self._set_detection_enabled(True)
+
+    def detection_enable_callback(self, msg):
+        self._set_detection_enabled(bool(msg.data))
+
+    def _set_detection_enabled(self, enabled):
+        """Attach or drop the image subscriptions so a gated node costs nothing per frame.
+
+        Dropping them rather than returning early also removes this node from the Canny
+        publisher's subscriber list, which lets the preprocessing node skip that work.
+        """
+        if enabled == self.detection_enabled:
+            return
+        self.detection_enabled = enabled
+
+        if enabled:
+            self._canny_subscription = self.create_subscription(
+                Image, self.canny_image_topic, self.image_callback, self.image_qos
+            )
+            self._logo_subscription = self.create_subscription(
+                PointStamped,
+                self.color_logo_center_topic,
+                self.logo_center_callback,
+                self.image_qos,
+            )
+            self.get_logger().info(f'{self.camera_name} detection enabled')
+            return
+
+        if self._canny_subscription is not None:
+            self.destroy_subscription(self._canny_subscription)
+            self._canny_subscription = None
+        if self._logo_subscription is not None:
+            self.destroy_subscription(self._logo_subscription)
+            self._logo_subscription = None
+        self._logo_msg = None
+        self.get_logger().info(
+            f'{self.camera_name} detection disabled; unsubscribed from {self.canny_image_topic}'
+        )
 
     def camera_info_callback(self, msg):
         if self.camera_info_received:
@@ -179,6 +234,8 @@ class RansacHoughTaskboardDetection(Node):
         return np.array([self._logo_msg.point.x, self._logo_msg.point.y], dtype=np.float32)
 
     def image_callback(self, msg):
+        if not self.detection_enabled:
+            return
         try:
             edges = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
             corners, detected_lines = self.detect_taskboard_corners_ransac(edges)

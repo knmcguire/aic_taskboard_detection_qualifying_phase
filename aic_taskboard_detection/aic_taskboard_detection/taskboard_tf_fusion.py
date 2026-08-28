@@ -7,6 +7,7 @@ import rclpy
 from geometry_msgs.msg import TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from std_msgs.msg import Bool
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
@@ -56,17 +57,36 @@ class TaskboardTfFusion(Node):
         self.detection_state_topic = str(
             self.declare_parameter('detection_state_topic', 'taskboard_detection_state').value
         )
+        self.detection_enable_topic = str(
+            self.declare_parameter('detection_enable_topic', 'taskboard_detection_enabled').value
+        )
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
-        self.detection_state_pub = self.create_publisher(Bool, self.detection_state_topic, 10)
+
+        # Latched so nodes that start (or restart) after a lock still receive the last state.
+        latched_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self.detection_state_pub = self.create_publisher(
+            Bool, self.detection_state_topic, latched_qos
+        )
+        self.detection_enable_pub = self.create_publisher(
+            Bool, self.detection_enable_topic, latched_qos
+        )
 
         self.taskboard_detected = False
         self._locked_transform = None
+        self._published_detection_state = None
+        self._published_detection_enabled = None
 
         self.create_timer(max(0.01, self.update_period_sec), self._timer_callback)
         self._publish_detection_state(False)
+        self._publish_detection_enabled(True)
 
         camera_frames = [self._camera_taskboard_frame(name) for name in self.camera_names]
         self.get_logger().info('Taskboard TF fusion node started.')
@@ -93,9 +113,23 @@ class TaskboardTfFusion(Node):
         return f'{self.camera_taskboard_frame_prefix}{camera_name}'
 
     def _publish_detection_state(self, detected):
+        detected = bool(detected)
+        if detected == self._published_detection_state:
+            return
+        self._published_detection_state = detected
         msg = Bool()
-        msg.data = bool(detected)
+        msg.data = detected
         self.detection_state_pub.publish(msg)
+
+    def _publish_detection_enabled(self, enabled):
+        """Tell the per-camera detectors whether their pose estimates are still needed."""
+        enabled = bool(enabled)
+        if enabled == self._published_detection_enabled:
+            return
+        self._published_detection_enabled = enabled
+        msg = Bool()
+        msg.data = enabled
+        self.detection_enable_pub.publish(msg)
 
     def _timer_callback(self):
         if self._locked_transform is not None:
@@ -112,6 +146,7 @@ class TaskboardTfFusion(Node):
         self.taskboard_detected = True
         self._republish_locked_transform()
         self._publish_detection_state(True)
+        self._publish_detection_enabled(self.continue_detecting)
 
         if not was_detected:
             t = fused.transform.translation
@@ -127,6 +162,10 @@ class TaskboardTfFusion(Node):
                 self.get_logger().info(
                     'Locked first match. Detection stopped; node stays alive to keep '
                     f'{self.taskboard_frame} available to downstream nodes.'
+                )
+                self.get_logger().info(
+                    f'Published detection gate false on {self.detection_enable_topic}; '
+                    'per-camera detectors will stop processing frames.'
                 )
 
     def _republish_locked_transform(self):
