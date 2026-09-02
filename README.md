@@ -1,5 +1,7 @@
 # AIC Preinsertion strategy
 
+> **Disclaimer:** This repository will **not be actively maintained** further. Feel free to open [GitHub Issues](https://github.com/knmcguire/aic_taskboard_detection_qualifying_phase/issues) with questions about how to run it — I will answer when I can.
+
 Qualifying-phase perception and preinsertion stack for the [AIC](https://github.com/intrinsic-dev/aic) task board. Two paths are supported:
 
 - **Regular** — multi-camera board pose + YOLO ports + zone projection (diagram below)
@@ -94,8 +96,6 @@ Then install:
 * The AIC toolbox ([source install](https://github.com/intrinsic-dev/aic/blob/main/docs/build_eval.md))
 
 Build this repo **from the workspace root** (`~/ws_aic`), not from inside this package directory (avoid nesting `build/` / `install/` / `log/` here).
-
-## Disclaimer
 
 Developed with help of [Cursor](https://cursor.com/), mostly using Grok 4.6 as auto-selected model.
 
