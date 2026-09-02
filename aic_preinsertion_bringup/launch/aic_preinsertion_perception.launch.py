@@ -9,9 +9,10 @@ from launch.actions import (
     GroupAction,
     IncludeLaunchDescription,
     OpaqueFunction,
+    RegisterEventHandler,
     SetEnvironmentVariable,
-    TimerAction,
 )
+from launch.event_handlers import OnProcessExit, OnProcessIO
 from launch.launch_description_sources import (
     FrontendLaunchDescriptionSource,
     PythonLaunchDescriptionSource,
@@ -19,6 +20,10 @@ from launch.launch_description_sources import (
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+# Startup lines the stages wait for, rather than guessing at timeouts.
+ZENOH_READY = "Started Zenoh router"
+TASKBOARD_DETECTION_READY = "RANSAC/Hough taskboard detection started for"
 
 POSE_AXES = ("x", "y", "z", "roll", "pitch", "yaw")
 COMPONENT_FIELDS = ("present", "translation", "roll", "pitch", "yaw")
@@ -77,10 +82,48 @@ def _task_board_spawn_args(task_board):
     return args
 
 
-def _delayed(period, actions):
-    if period <= 0.0:
-        return list(actions)
-    return [TimerAction(period=period, actions=list(actions))]
+def _gate(actions):
+    """Hold back `actions` until a trigger releases them, which happens once."""
+    pending = list(actions)
+
+    def release():
+        released, pending[:] = list(pending), []
+        return released or None
+
+    return release
+
+
+def _on_output(pattern, release):
+    """Release a gate when any running process prints `pattern`."""
+
+    def handler(event):
+        if pattern in event.text.decode(errors="replace"):
+            return release()
+        return None
+
+    return RegisterEventHandler(OnProcessIO(on_stdout=handler, on_stderr=handler))
+
+
+def _on_clean_exit(matches, release):
+    """Release a gate when a process matching `matches` exits successfully."""
+
+    def handler(event, context):
+        # Processes also exit cleanly while the stack is being torn down.
+        if context.is_shutdown:
+            return None
+        if event.returncode == 0 and matches(event):
+            return release()
+        return None
+
+    return RegisterEventHandler(OnProcessExit(on_exit=handler))
+
+
+def _spawner_of(controller):
+    def matches(event):
+        cmd = [str(part) for part in event.cmd]
+        return cmd[0].endswith("spawner") and controller in cmd
+
+    return matches
 
 
 def _scoped_include(include):
@@ -105,11 +148,12 @@ def launch_setup(context, *args, **kwargs):
     start_zenoh = _as_bool(
         LaunchConfiguration("start_zenoh").perform(context), default=True
     )
-    detection_startup_delay = float(
-        LaunchConfiguration("detection_startup_delay").perform(context)
-    )
+    initial_joint_controller = LaunchConfiguration(
+        "initial_joint_controller"
+    ).perform(context)
 
     gz_launch_args = {
+        "initial_joint_controller": initial_joint_controller,
         "ground_truth": _to_launch_str(sim.get("ground_truth", True)),
         "start_aic_engine": _to_launch_str(sim.get("start_aic_engine", False)),
         "gazebo_gui": _to_launch_str(sim.get("gazebo_gui", True)),
@@ -225,19 +269,25 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
     )
 
-    detection_actions = [
-        _scoped_include(preprocessing),
-        _scoped_include(taskboard_detection),
-        _scoped_include(component_detection),
+    # Each stage waits for the previous one to report itself ready. Handlers are
+    # registered before anything starts so no event can be missed.
+    actions = [
+        # The arm controller activating is the point where Gazebo has finished
+        # loading and ros2_control is running.
+        _on_clean_exit(
+            _spawner_of(initial_joint_controller),
+            _gate([_scoped_include(preprocessing), _scoped_include(taskboard_detection)]),
+        ),
+        _on_output(
+            TASKBOARD_DETECTION_READY,
+            _gate([_scoped_include(component_detection)]),
+        ),
     ]
-
-    actions = []
     if start_zenoh:
         actions.append(zenoh_router)
-    # Start Gazebo the same way as aic_gz_bringup standalone: no extra timer,
-    # and spawn the task board through that launch file.
-    actions.append(simulator)
-    actions.extend(_delayed(detection_startup_delay, detection_actions))
+        actions.append(_on_output(ZENOH_READY, _gate([simulator])))
+    else:
+        actions.append(simulator)
     return actions
 
 
@@ -262,9 +312,9 @@ def generate_launch_description():
                 description="Start the rmw_zenohd router before the rest of the stack.",
             ),
             DeclareLaunchArgument(
-                "detection_startup_delay",
-                default_value="10.0",
-                description="Seconds to wait after launch start before preprocessing and detection.",
+                "initial_joint_controller",
+                default_value="aic_controller",
+                description="Controller Gazebo activates last; its spawner exiting starts detection.",
             ),
             DeclareLaunchArgument(
                 "use_sim_time",
