@@ -13,6 +13,10 @@ ROS 2 **Kilted**, Gazebo **Ionic**, `rmw_zenoh_cpp`. Depth / RGB-D is not used i
 
 *Gazebo scene: AIC arm with wrist cameras over the task board (magenta logo, SC/NIC mounts).*
 
+
+Both of these strategies where used in the qualifying round of the AI for industry challenge, as part of Team B-robotized (with team mates @knmcguire, @JenniferBuehler and @YaraShahin. This is not the original code but an cleaned up version that acts as a representation of what we have used during the challenge. The last part, namely the hil-serl insertion, is not part of this repository and will be open sourced and released at a later stage.
+
+
 ## Packages
 
 | Package | Role |
@@ -36,10 +40,10 @@ How the diagram maps onto this repo:
 | Preprocessing per camera | `preprocessing` ×3 — color logo filter, binary/morph blob, Canny, gripper mask |
 | Taskboard transform estimation per camera | `ransac_hough_taskboard_detection` ×3 — Hough/RANSAC lines → corners → `solvePnP` → TF `camera → taskboard_<cam>` |
 | Taskboard pose verification | `taskboard_tf_fusion` — multi-camera consensus → TF `base_link → taskboard_detected` |
-| YOLO object detection | `sc_port_detection` + `nic_port_detection` on the center camera |
+| YOLO object detection | `sc_port_detection` + `nic_port_detection` on the center camera, trained by @YaraShahin  |
 | Zone projection | `zone_projection` — ray ∩ zone planes on the board → TF `taskboard_detected →` port frames |
 | Preinsertion control | Separate launch: rotate to blob → wait for board TF → move above rail → move above port |
-| HILSERL policy: Finish Insertion | **Not in this repo** — intended downstream insertion policy |
+| HILSERL policy: Finish Insertion | **Not in this repo** — intended downstream insertion policy, developed by @JenniferBuehler |
 
 Topic / frame names in code (diagram labels in parentheses):
 
@@ -63,10 +67,10 @@ Example center-camera debug views along that chain (raw → blob → Canny → b
 | Diagram block | Implementation |
 | --- | --- |
 | Center camera only | No left/right cameras, no preprocessing / board pose / fusion |
-| YOLO object detection | Same `sc_port_detection` + `nic_port_detection` |
+| YOLO object detection | Same `sc_port_detection` + `nic_port_detection` trained by@YaraShahin |
 | Ray–plane intersection | `simple_port_3d` — pixel ray ∩ horizontal planes in `tabletop` (SC ≈ +0.03 m, NIC ≈ +0.15 m) |
-| Preinsertion control (move gripper above port) | Intended use of the diagram; the shipped `preinsertion_control` still expects blob + `taskboard_detected` from the **regular** path |
-| HILSERL policy | **Not in this repo** |
+| Preinsertion control (move gripper above port) | MISSING!  |
+| HILSERL policy | **Not in this repo** trained by @JenniferBuehler|
 
 Note: the simple diagram labels the port TF as `taskboard → detected port`; `simple_port_3d` publishes under parent frame **`tabletop`**, with the same child names as zone projection (`nic_port_r*_p*`, `sc_port_r*`).
 
